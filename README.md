@@ -1,4 +1,4 @@
-# 🧖‍♀️ Backend Krito Centro Estético — ERP para Centros de Estética
+# 🧖‍♀️ Backend Karito Centro Estético — ERP para Centros de Estética
 
 Sistema **backend** para una aplicación **ERP (Enterprise Resource Planning)** diseñada para la **gestión completa de un centro estético**.
 Desarrollado con **Node.js, Express y MongoDB**, implementando autenticación JWT, manejo de archivos, correo electrónico, y comunicación en tiempo real con **Socket.IO**.
