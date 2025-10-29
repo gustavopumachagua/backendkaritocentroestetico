@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cuenta de Administrador Creada</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    "
+  >
+    <table
+      align="center"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        max-width: 600px;
+        background-color: #ffffff;
+        margin: auto;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      "
+    >
+      <tr>
+        <td
+          style="
+            background-color: #007bff;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+          "
+        >
+          <h1 style="margin: 0; font-size: 24px">Karito Centro Estetico</h1>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding: 30px">
+          <h2 style="color: #333">¡Bienvenido, {{nombre}}!</h2>
+          <p style="color: #555; font-size: 15px">
+            Tu cuenta de <strong>administrador</strong> ha sido creada
+            exitosamente en el sistema Karito Centro Estetico.
+          </p>
+
+          <div
+            style="
+              background-color: #f9f9f9;
+              padding: 15px;
+              border-radius: 8px;
+              margin: 20px 0;
+            "
+          >
+            <p><strong>Usuario:</strong> {{email}}</p>
+            <p><strong>Contraseña temporal:</strong> admin123</p>
+          </div>
+
+          <p style="color: #555; font-size: 15px">
+            Para acceder a tu cuenta, haz clic en el botón a continuación:
+          </p>
+
+          <p style="text-align: center; margin: 25px 0">
+            <a
+              href="{{loginLink}}"
+              style="
+                background-color: #007bff;
+                color: #fff;
+                padding: 12px 25px;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: bold;
+                display: inline-block;
+              "
+            >
+              Iniciar sesión
+            </a>
+          </p>
+
+          <p style="color: #777; font-size: 14px">
+            ⚠️ Te recomendamos cambiar tu contraseña después de iniciar sesión
+            por primera vez.
+          </p>
+        </td>
+      </tr>
+
+      <tr>
+        <td
+          style="
+            background-color: #f0f0f0;
+            text-align: center;
+            padding: 15px;
+            color: #999;
+            font-size: 12px;
+          "
+        >
+          Este mensaje fue generado automáticamente por el sistema.<br />
+          © 2025 Karito Centro Estetico. Todos los derechos reservados.
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
