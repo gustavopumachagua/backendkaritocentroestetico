@@ -110,7 +110,7 @@ const resetPassword = async (req, res) => {
 
     await sendEmail({
       to: email,
-      subject: `Restablecimiento de contraseña - ${user.nombre}`,
+      subject: "Restablecimiento de contraseña",
       html,
     });
 
