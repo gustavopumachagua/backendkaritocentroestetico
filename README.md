@@ -69,13 +69,8 @@ JWT_SECRET=clave_super_segura
 CLOUDINARY_CLOUD_NAME=tu_cloud_name
 CLOUDINARY_API_KEY=tu_api_key
 CLOUDINARY_API_SECRET=tu_api_secret
-<<<<<<< HEAD
-RESEND_API_KEY=re_tu_api_key_de_resend
-MAIL_FROM=Karito Centro Estético <onboarding@resend.dev>
-=======
 EMAIL_USER=tu_correo@gmail.com
 EMAIL_PASS=tu_contraseña_app
->>>>>>> b447c42 (Migrar envío de correos a Brevo)
 CLIENT_URL=http://localhost:5173
 ```
 
