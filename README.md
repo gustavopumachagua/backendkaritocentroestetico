@@ -12,7 +12,7 @@ Desarrollado con **Node.js, Express y MongoDB**, implementando autenticación JW
 - 📅 **Módulo de citas y tratamientos**
 - 📦 **Módulo de inventario**
 - 💬 **Comunicación en tiempo real (Socket.IO)**
-- 📧 **Notificaciones por correo (Nodemailer)**
+- 📧 **Notificaciones por correo (resend)**
 - ☁️ **Carga de imágenes con Cloudinary y Multer**
 - 🧱 **Arquitectura limpia y escalable**
 
@@ -27,7 +27,7 @@ Desarrollado con **Node.js, Express y MongoDB**, implementando autenticación JW
 | Base de datos      | **MongoDB + Mongoose**        | ORM para modelado de datos NoSQL        |
 | Seguridad          | **JWT, bcrypt, helmet, cors** | Autenticación y protección de API       |
 | Subida de archivos | **Multer + Cloudinary**       | Gestión de imágenes en la nube          |
-| Email              | **Nodemailer**                | Envío de correos automáticos            |
+| Email              | **resend**                    | Envío de correos automáticos            |
 | Tiempo real        | **Socket.IO**                 | Comunicación bidireccional (WebSockets) |
 | Logs               | **Morgan**                    | Registro de peticiones HTTP             |
 | Validación         | **express-validator**         | Validación y sanitización de datos      |
@@ -69,8 +69,8 @@ JWT_SECRET=clave_super_segura
 CLOUDINARY_CLOUD_NAME=tu_cloud_name
 CLOUDINARY_API_KEY=tu_api_key
 CLOUDINARY_API_SECRET=tu_api_secret
-EMAIL_USER=tu_correo@gmail.com
-EMAIL_PASS=tu_contraseña_app
+RESEND_API_KEY=re_tu_api_key_de_resend
+MAIL_FROM="Karito Centro Estético <onboarding@resend.dev>"
 CLIENT_URL=http://localhost:5173
 ```
 
