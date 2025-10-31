@@ -21,8 +21,7 @@ const userSchema = new mongoose.Schema(
     activo: { type: Boolean, default: true },
     avatar: {
       type: String,
-      default:
-        "https://res.cloudinary.com/db8tsilie/image/upload/v1759552820/avatar_ilbvur.jpg",
+      default: process.env.DEFAULT_AVATAR_URL,
     },
     avatarPublicId: {
       type: String,

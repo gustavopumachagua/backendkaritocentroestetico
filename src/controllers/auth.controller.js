@@ -62,9 +62,7 @@ const login = async (req, res) => {
         nombre: user.nombre,
         email: user.email,
         rol: user.rol,
-        avatar:
-          user.avatar ||
-          "https://res.cloudinary.com/db8tsilie/image/upload/v1759552820/avatar_ilbvur.jpg",
+        avatar: user.avatar || process.env.DEFAULT_AVATAR_URL,
       },
     });
   } catch (err) {

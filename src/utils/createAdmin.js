@@ -5,9 +5,6 @@ const mongoose = require("mongoose");
 const User = require("../models/User.model");
 const sendEmail = require("../utils/sendEmail");
 
-const DEFAULT_AVATAR_URL =
-  "https://res.cloudinary.com/db8tsilie/image/upload/v1759552820/avatar_ilbvur.jpg";
-
 function renderEmailTemplate(templateName, variables = {}) {
   const templatePath = path.join(__dirname, "..", "emails", templateName);
   let html = fs.readFileSync(templatePath, "utf8");
@@ -27,11 +24,12 @@ mongoose
     if (!existeAdmin) {
       const admin = new User({
         nombre: "Admin Principal",
-        email: "gustavopumachagua@gmail.com",
-        password: "admin123",
+        email: process.env.ADMIN_EMAIL,
+        password: process.env.ADMIN_PASSWORD,
         rol: "administrador",
-        avatar: DEFAULT_AVATAR_URL,
+        avatar: process.env.DEFAULT_AVATAR_URL,
       });
+
       await admin.save();
       console.log("✅ Administrador creado con avatar");
 
@@ -54,4 +52,4 @@ mongoose
 
     mongoose.connection.close();
   })
-  .catch((err) => console.log(err));
+  .catch((err) => console.error(err));
