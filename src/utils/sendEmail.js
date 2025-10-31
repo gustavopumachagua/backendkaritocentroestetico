@@ -1,28 +1,29 @@
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: process.env.MAIL_HOST,
+  port: process.env.MAIL_PORT,
+  secure: false,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
+});
 
 async function sendEmail({ to, subject, html }) {
   try {
-    const response = await resend.emails.send({
-      from:
-        process.env.MAIL_FROM ||
-        "Karito Centro Estético <onboarding@resend.dev>",
+    const info = await transporter.sendMail({
+      from: process.env.MAIL_FROM,
       to,
       subject,
       html,
     });
-
-    if (response.error) {
-      console.error("❌ Error al enviar el correo:", response.error);
-    } else {
-      console.log(
-        "📧 Correo enviado correctamente:",
-        response.data?.id || "sin ID"
-      );
-    }
+    console.log("📧 Correo enviado correctamente:", info.messageId);
   } catch (error) {
-    console.error("❌ Error inesperado al enviar el correo:", error);
+    console.error("❌ Error al enviar el correo:", error);
   }
 }
 
