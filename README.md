@@ -70,7 +70,7 @@ CLOUDINARY_CLOUD_NAME=tu_cloud_name
 CLOUDINARY_API_KEY=tu_api_key
 CLOUDINARY_API_SECRET=tu_api_secret
 RESEND_API_KEY=re_tu_api_key_de_resend
-MAIL_FROM="Karito Centro Estético <onboarding@resend.dev>"
+MAIL_FROM=Karito Centro Estético <onboarding@resend.dev>
 CLIENT_URL=http://localhost:5173
 ```
 
