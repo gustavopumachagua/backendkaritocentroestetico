@@ -101,18 +101,16 @@ const resetPassword = async (req, res) => {
     if (!user)
       return res.status(404).json({ message: "Usuario no encontrado" });
 
-    const resetLink = `${
-      process.env.FRONTEND_URL
-    }/new-password?email=${encodeURIComponent(email)}`;
-
     const html = renderEmailTemplate("resetPassword.html", {
       nombre: user.nombre,
-      resetLink,
+      resetLink: `${
+        process.env.FRONTEND_URL
+      }/new-password?email=${encodeURIComponent(email)}`,
     });
 
     await sendEmail({
       to: email,
-      subject: "Restablecimiento de contraseña",
+      subject: `Restablecimiento de contraseña - ${user.nombre}`,
       html,
     });
 
