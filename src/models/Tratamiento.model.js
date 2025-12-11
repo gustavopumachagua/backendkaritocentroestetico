@@ -8,6 +8,7 @@ const TratamientoSchema = new Schema(
     sexo: { type: String },
     servicio: [{ type: String }],
     fecha: { type: Date, required: true },
+    celular: { type: String, required: true },
     observacion: { type: String },
     insumos: [{ type: String }],
     imagenes: [

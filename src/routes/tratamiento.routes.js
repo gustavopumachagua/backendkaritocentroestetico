@@ -25,6 +25,7 @@ router.get("/buscar/:nombre", authMiddleware, async (req, res) => {
       nombre: tratamiento.nombre,
       edad: tratamiento.edad,
       sexo: tratamiento.sexo,
+      celular: tratamiento.celular,
     });
   } catch (error) {
     console.error("Error al buscar paciente:", error);
