@@ -1,201 +1,71 @@
-const User = require("../models/User.model");
+const userService = require("../services/user.service");
+const asyncHandler = require("../helpers/asyncHandler");
 
-const actualizarPerfil = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nombre, avatar } = req.body;
+/**
+ * Controlador de Usuarios.
+ * Responsabilidad: orquestación HTTP.
+ * La autorización por rol se maneja ahora con el middleware authorizeRole.
+ */
 
-    if (!nombre) {
-      return res.status(400).json({ message: "El nombre es obligatorio" });
-    }
+const actualizarPerfil = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { nombre, avatar } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      id,
-      { nombre, avatar },
-      { new: true }
-    );
+  const user = await userService.actualizarPerfil(id, { nombre, avatar });
 
-    if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
-    }
+  res.json({
+    message: "Perfil actualizado correctamente",
+    user,
+  });
+});
 
-    res.json({
-      message: "Perfil actualizado correctamente",
-      user: {
-        id: user._id,
-        nombre: user.nombre,
-        email: user.email,
-        rol: user.rol,
-        avatar: user.avatar,
-      },
-    });
-  } catch (error) {
-    console.error("Error al actualizar perfil:", error);
-    res.status(500).json({ message: "Error en el servidor" });
-  }
-};
+const crearUsuario = asyncHandler(async (req, res) => {
+  const { nombre, email, rol } = req.body;
+  const usuario = await userService.crearUsuario({ nombre, email, rol });
 
-const sendEmail = require("../utils/sendEmail");
-const fs = require("fs");
-const path = require("path");
+  res.status(201).json({
+    message: "Usuario creado correctamente",
+    usuario,
+  });
+});
 
-function renderEmailTemplate(templateName, variables = {}) {
-  const templatePath = path.join(__dirname, "..", "emails", templateName);
-  let html = fs.readFileSync(templatePath, "utf8");
+const obtenerUsuarios = asyncHandler(async (req, res) => {
+  const usuarios = await userService.obtenerUsuarios();
+  res.json(usuarios);
+});
 
-  for (const key in variables) {
-    html = html.replace(new RegExp(`{{${key}}}`, "g"), variables[key]);
-  }
+const obtenerProfesionales = asyncHandler(async (req, res) => {
+  const profesionales = await userService.obtenerProfesionales();
+  res.json(profesionales);
+});
 
-  return html;
-}
+const suspenderUsuario = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const usuario = await userService.suspenderUsuario(id);
 
-const crearUsuario = async (req, res) => {
-  try {
-    const { nombre, email, rol } = req.body;
+  res.json({
+    message: `Usuario ${
+      usuario.activo ? "activado" : "suspendido"
+    } correctamente`,
+    usuario,
+  });
+});
 
-    if (req.user.rol !== "administrador") {
-      return res.status(403).json({ message: "No autorizado" });
-    }
+const eliminarUsuario = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const usuarioEliminado = await userService.eliminarUsuario(id);
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    const existe = await User.findOne({ email: normalizedEmail });
-    if (existe) {
-      return res.status(400).json({ message: "El correo ya está registrado" });
-    }
-
-    const passwordTemporal =
-      Math.random().toString(36).slice(-10) +
-      Math.random().toString(36).slice(-10);
-
-    const nuevoUsuario = new User({
-      nombre: nombre.trim(),
-      email: normalizedEmail,
-      rol: rol.toLowerCase(),
-      password: passwordTemporal,
-    });
-
-    await nuevoUsuario.save();
-
-    const html = renderEmailTemplate("usuariosWelcomeEmail.html", {
-      nombre,
-      email: normalizedEmail,
-      rol,
-      password: passwordTemporal,
-      loginLink: `${process.env.FRONTEND_URL}/login`,
-    });
-
-    await sendEmail({
-      to: normalizedEmail,
-      subject: `Bienvenido al sistema - Cuenta de ${rol}`,
-      html,
-    });
-
-    res.status(201).json({
-      message: "Usuario creado correctamente",
-      usuario: {
-        id: nuevoUsuario._id,
-        nombre: nuevoUsuario.nombre,
-        email: nuevoUsuario.email,
-        rol: nuevoUsuario.rol,
-        activo: nuevoUsuario.activo,
-      },
-    });
-  } catch (error) {
-    console.error("❌ Error al crear usuario:", error);
-    res.status(500).json({ message: "Error en el servidor" });
-  }
-};
-
-const obtenerUsuarios = async (req, res) => {
-  try {
-    if (req.user.rol !== "administrador")
-      return res.status(403).json({ message: "No autorizado" });
-
-    const usuarios = await User.find().select("-password");
-    res.json(usuarios);
-  } catch (error) {
-    console.error("Error al obtener usuarios:", error);
-    res.status(500).json({ message: "Error en el servidor" });
-  }
-};
-
-const suspenderUsuario = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (req.user.rol !== "administrador") {
-      return res.status(403).json({ message: "No autorizado" });
-    }
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
-    }
-
-    if (user.rol === "administrador") {
-      return res
-        .status(403)
-        .json({ message: "No se puede suspender un administrador" });
-    }
-
-    user.activo = !user.activo;
-    await user.save();
-
-    res.json({
-      message: `Usuario ${
-        user.activo ? "activado" : "suspendido"
-      } correctamente`,
-      usuario: {
-        id: user._id,
-        nombre: user.nombre,
-        email: user.email,
-        rol: user.rol,
-        activo: user.activo,
-      },
-    });
-  } catch (error) {
-    console.error("Error al suspender usuario:", error);
-    res.status(500).json({ message: "Error en el servidor" });
-  }
-};
-
-const eliminarUsuario = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (req.user.rol !== "administrador") {
-      return res.status(403).json({ message: "No autorizado" });
-    }
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
-    }
-
-    if (user.rol === "administrador") {
-      return res
-        .status(403)
-        .json({ message: "No se puede eliminar un administrador" });
-    }
-
-    await User.findByIdAndDelete(id);
-
-    res.json({
-      message: "Usuario eliminado correctamente",
-      usuarioEliminado: id,
-    });
-  } catch (error) {
-    console.error("Error al eliminar usuario:", error);
-    res.status(500).json({ message: "Error en el servidor" });
-  }
-};
+  res.json({
+    message: "Usuario eliminado correctamente",
+    usuarioEliminado,
+  });
+});
 
 module.exports = {
   actualizarPerfil,
   crearUsuario,
   obtenerUsuarios,
+  obtenerProfesionales,
   suspenderUsuario,
   eliminarUsuario,
 };

@@ -4,31 +4,38 @@ const {
   actualizarPerfil,
   crearUsuario,
   obtenerUsuarios,
+  obtenerProfesionales,
   suspenderUsuario,
   eliminarUsuario,
 } = require("../controllers/user.controller");
 const authMiddleware = require("../middlewares/authJwt");
+const authorizeRole = require("../middlewares/authorizeRole");
 
-router.post("/register", authMiddleware, crearUsuario);
+router.post(
+  "/register",
+  authMiddleware,
+  authorizeRole("administrador"),
+  crearUsuario,
+);
 
-router.get("/", authMiddleware, obtenerUsuarios);
+router.get("/", authMiddleware, authorizeRole("administrador"), obtenerUsuarios);
+
+router.get("/profesionales", authMiddleware, obtenerProfesionales);
 
 router.put("/:id", authMiddleware, actualizarPerfil);
 
-router.patch("/:id/suspender", authMiddleware, suspenderUsuario);
+router.patch(
+  "/:id/suspender",
+  authMiddleware,
+  authorizeRole("administrador"),
+  suspenderUsuario,
+);
 
-router.delete("/:id", authMiddleware, eliminarUsuario);
-
-router.get("/profesionales", authMiddleware, async (req, res) => {
-  try {
-    const profesionales = await require("../models/User.model")
-      .find({ rol: { $in: ["doctor", "cosmiatra"] }, activo: true })
-      .select("-password");
-    res.json(profesionales);
-  } catch (error) {
-    console.error("Error al obtener profesionales:", error);
-    res.status(500).json({ message: "Error en el servidor" });
-  }
-});
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorizeRole("administrador"),
+  eliminarUsuario,
+);
 
 module.exports = router;

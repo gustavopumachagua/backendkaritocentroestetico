@@ -68,6 +68,11 @@ function securityHeaders() {
 function errorHandler(err, req, res, next) {
   if (!err) return next();
 
+  // Errores operacionales lanzados desde Services/Repositories (AppError)
+  if (err.isOperational) {
+    return res.status(err.statusCode).json({ message: err.message });
+  }
+
   if (err.message === "Origen no permitido por CORS") {
     return res.status(403).json({ message: "Origen no permitido" });
   }

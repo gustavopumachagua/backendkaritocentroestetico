@@ -1,22 +1,14 @@
 require("dotenv").config();
-const fs = require("fs");
-const path = require("path");
 const mongoose = require("mongoose");
 const User = require("../models/User.model");
 const connectDB = require("../config/db");
+const renderEmailTemplate = require("../helpers/emailTemplateRenderer");
 const sendEmail = require("./sendEmail");
 
-function renderEmailTemplate(templateName, variables = {}) {
-  const templatePath = path.join(__dirname, "..", "emails", templateName);
-  let html = fs.readFileSync(templatePath, "utf8");
-
-  for (const key in variables) {
-    html = html.replace(new RegExp(`{{${key}}}`, "g"), variables[key]);
-  }
-
-  return html;
-}
-
+/**
+ * Asegura que exista un usuario administrador en la base de datos.
+ * Se ejecuta al iniciar el servidor y puede ejecutarse como script standalone.
+ */
 async function ensureAdminUser() {
   const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD?.trim();

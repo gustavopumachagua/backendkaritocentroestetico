@@ -1,236 +1,74 @@
-const Cita = require("../models/Cita.model");
-const User = require("../models/User.model");
-const Servicio = require("../models/Servicio.model");
-const Inventario = require("../models/Inventario.model");
+const citaService = require("../services/cita.service");
+const asyncHandler = require("../helpers/asyncHandler");
 
-async function validarServiciosPorRol(rol, serviciosArray) {
-  if (Servicio) {
-    const encontrados = await Servicio.find({
-      rol,
-      nombre: { $in: serviciosArray },
-    }).select("nombre");
-    return encontrados.map((s) => s.nombre);
-  }
+/**
+ * Controlador de Citas.
+ * Responsabilidad: orquestación HTTP y emisión de eventos Socket.IO.
+ */
 
-  if (Inventario) {
-    const encontrados = await Inventario.find({
-      rol,
-      tipo: "servicio",
-      nombre: { $in: serviciosArray },
-    }).select("nombre");
-    return encontrados.map((s) => s.nombre);
-  }
+exports.obtenerCitas = asyncHandler(async (req, res) => {
+  const citas = await citaService.obtenerCitas();
+  res.json(citas);
+});
 
-  return serviciosArray;
-}
+exports.crearCita = asyncHandler(async (req, res) => {
+  const { cliente, rol, profesional, servicio, fecha } = req.body;
+  const citaPop = await citaService.crearCita({
+    cliente,
+    rol,
+    profesional,
+    servicio,
+    fecha,
+  });
 
-exports.obtenerCitas = async (req, res) => {
-  try {
-    const citas = await Cita.find()
-      .populate("profesional", "nombre email rol avatar")
-      .sort({ fecha: -1 });
+  const io = req.app.get("io");
+  io.emit("nuevaCita", citaPop);
 
-    res.json(citas);
-  } catch (error) {
-    console.error("Error obtener citas:", error);
-    res.status(500).json({ message: "Error al obtener citas" });
-  }
-};
+  res.status(201).json({ message: "Cita creada", cita: citaPop });
+});
 
-exports.crearCita = async (req, res) => {
-  try {
-    const { cliente, rol, profesional, servicio, fecha } = req.body;
+exports.actualizarCita = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { cliente, rol, profesional, servicio, fecha } = req.body;
 
-    if (!cliente || !rol || !profesional || !fecha) {
-      return res.status(400).json({
-        message:
-          "Datos incompletos. cliente, rol, profesional y fecha son requeridos.",
-      });
-    }
+  const citaActualizada = await citaService.actualizarCita(id, {
+    cliente,
+    rol,
+    profesional,
+    servicio,
+    fecha,
+  });
 
-    let profesionalDoc;
-    if (/^[0-9a-fA-F]{24}$/.test(profesional)) {
-      profesionalDoc = await User.findById(profesional);
-    } else {
-      profesionalDoc = await User.findOne({
-        nombre: profesional,
-        rol: rol.toLowerCase(),
-      });
-    }
+  const io = req.app.get("io");
+  io.emit("citaActualizada", citaActualizada);
 
-    if (!profesionalDoc) {
-      return res
-        .status(404)
-        .json({ message: "Profesional no encontrado para el rol indicado." });
-    }
+  res.json({ message: "Cita actualizada", cita: citaActualizada });
+});
 
-    if (profesionalDoc.rol !== rol.toLowerCase()) {
-      return res.status(400).json({
-        message: "El profesional no corresponde al rol seleccionado.",
-      });
-    }
+exports.eliminarCita = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const citaEliminada = await citaService.eliminarCita(id);
 
-    let serviciosValidos = [];
-    if (Array.isArray(servicio) && servicio.length > 0) {
-      serviciosValidos = await validarServiciosPorRol(
-        rol.toLowerCase(),
-        servicio
-      );
-    }
+  const io = req.app.get("io");
+  io.emit("citaEliminada", { _id: id });
 
-    const fechaObj = new Date(fecha);
-    if (isNaN(fechaObj.getTime())) {
-      return res.status(400).json({ message: "Fecha inválida" });
-    }
+  res.json({ message: "Cita eliminada", cita: citaEliminada });
+});
 
-    const nuevaCita = new Cita({
-      cliente,
-      rol: rol.toLowerCase(),
-      profesional: profesionalDoc._id,
-      servicio: serviciosValidos.length > 0 ? serviciosValidos : servicio,
-      fecha: fechaObj,
-    });
+exports.actualizarEstadoCita = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
 
-    await nuevaCita.save();
+  const citaActualizada = await citaService.actualizarEstadoCita(id, estado);
 
-    const citaPop = await Cita.findById(nuevaCita._id).populate(
-      "profesional",
-      "nombre email rol avatar"
-    );
+  const io = req.app.get("io");
+  io.emit("estadoCitaActualizado", citaActualizada);
 
-    const io = req.app.get("io");
-    io.emit("nuevaCita", citaPop);
+  res.json({ message: "Estado actualizado", cita: citaActualizada });
+});
 
-    res.status(201).json({ message: "Cita creada", cita: citaPop });
-  } catch (error) {
-    console.error("Error crear cita:", error);
-    res.status(500).json({ message: "Error al crear la cita" });
-  }
-};
-
-exports.actualizarCita = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { cliente, rol, profesional, servicio, fecha } = req.body;
-
-    if (!cliente || !rol || !profesional || !fecha) {
-      return res.status(400).json({
-        message:
-          "Datos incompletos. cliente, rol, profesional y fecha son requeridos.",
-      });
-    }
-
-    const cita = await Cita.findById(id);
-    if (!cita) return res.status(404).json({ message: "Cita no encontrada" });
-
-    const rolNormalizado = rol.toLowerCase();
-    let profesionalDoc;
-    if (/^[0-9a-fA-F]{24}$/.test(profesional)) {
-      profesionalDoc = await User.findById(profesional);
-    } else {
-      profesionalDoc = await User.findOne({
-        nombre: profesional,
-        rol: rolNormalizado,
-      });
-    }
-
-    if (!profesionalDoc) {
-      return res
-        .status(404)
-        .json({ message: "Profesional no encontrado para el rol indicado." });
-    }
-
-    if (profesionalDoc.rol !== rolNormalizado) {
-      return res.status(400).json({
-        message: "El profesional no corresponde al rol seleccionado.",
-      });
-    }
-
-    let serviciosValidos = [];
-    if (Array.isArray(servicio) && servicio.length > 0) {
-      serviciosValidos = await validarServiciosPorRol(rolNormalizado, servicio);
-    }
-
-    const fechaObj = new Date(fecha);
-    if (isNaN(fechaObj.getTime())) {
-      return res.status(400).json({ message: "Fecha inválida" });
-    }
-
-    cita.cliente = cliente;
-    cita.rol = rolNormalizado;
-    cita.profesional = profesionalDoc._id;
-    cita.servicio = serviciosValidos.length > 0 ? serviciosValidos : servicio;
-    cita.fecha = fechaObj;
-
-    await cita.save();
-
-    const citaActualizada = await Cita.findById(id).populate(
-      "profesional",
-      "nombre email rol avatar"
-    );
-
-    const io = req.app.get("io");
-    io.emit("citaActualizada", citaActualizada);
-
-    res.json({ message: "Cita actualizada", cita: citaActualizada });
-  } catch (error) {
-    console.error("Error al actualizar cita:", error);
-    res.status(500).json({ message: "Error al actualizar la cita" });
-  }
-};
-
-exports.eliminarCita = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const citaEliminada = await Cita.findByIdAndDelete(id);
-
-    if (!citaEliminada) {
-      return res.status(404).json({ message: "Cita no encontrada" });
-    }
-
-    const io = req.app.get("io");
-    io.emit("citaEliminada", { _id: id });
-
-    res.json({ message: "Cita eliminada", cita: citaEliminada });
-  } catch (error) {
-    console.error("Error al eliminar cita:", error);
-    res.status(500).json({ message: "Error al eliminar la cita" });
-  }
-};
-
-exports.actualizarEstadoCita = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { estado } = req.body;
-
-    const estadosValidos = ["atendido", "aplazado", "cancelado"];
-    if (!estadosValidos.includes(estado)) {
-      return res.status(400).json({ message: "Estado inválido" });
-    }
-
-    const cita = await Cita.findById(id);
-    if (!cita) return res.status(404).json({ message: "Cita no encontrada" });
-
-    if (cita.estado !== "pendiente") {
-      return res
-        .status(400)
-        .json({ message: "El estado solo puede cambiar una vez" });
-    }
-
-    cita.estado = estado;
-    await cita.save();
-
-    const citaActualizada = await Cita.findById(id).populate(
-      "profesional",
-      "nombre rol"
-    );
-
-    const io = req.app.get("io");
-    io.emit("estadoCitaActualizado", citaActualizada);
-
-    res.json({ message: "Estado actualizado", cita: citaActualizada });
-  } catch (error) {
-    console.error("Error al actualizar estado:", error);
-    res.status(500).json({ message: "Error al actualizar estado" });
-  }
-};
+exports.buscarPacientes = asyncHandler(async (req, res) => {
+  const nombre = req.query.nombre;
+  const resultado = await citaService.buscarPacientes(nombre);
+  res.json(resultado);
+});
