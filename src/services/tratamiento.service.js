@@ -4,6 +4,7 @@ const citaRepository = require("../repositories/cita.repository");
 const escapeRegex = require("../utils/escapeRegex");
 const { deleteLocalFile } = require("../helpers/fileHelper");
 const AppError = require("../errors/AppError");
+const { OBJECT_ID_REGEX } = require("../constants");
 
 /**
  * Servicio de lógica de negocio para Tratamientos.
@@ -72,6 +73,7 @@ const crearTratamiento = async (data, files) => {
     insumos,
     profesional,
     rol,
+    citaId,
   } = data;
 
   const serviciosArray =
@@ -79,27 +81,58 @@ const crearTratamiento = async (data, files) => {
   const insumosArray =
     typeof insumos === "string" ? insumos.split(",") : insumos;
 
-  let imagenesSubidas = [];
-  if (files && files.length > 0) {
-    imagenesSubidas = await subirImagenes(files);
+  if (citaId && !OBJECT_ID_REGEX.test(citaId)) {
+    throw new AppError("La cita seleccionada no es válida.", 400);
   }
 
-  const nuevoTratamiento = await tratamientoRepository.create({
-    nombre,
-    sexo,
-    celular,
-    servicio: serviciosArray,
-    fecha,
-    observacion,
-    insumos: insumosArray,
-    profesional,
-    rol,
-    imagenes: imagenesSubidas,
-  });
+  let citaReservada = null;
+  if (citaId) {
+    citaReservada = await citaRepository.marcarComoAtendidaSiPendiente(citaId);
 
-  await citaRepository.findByClienteAndFecha(nombre, fecha);
+    if (!citaReservada) {
+      throw new AppError(
+        "La cita ya fue atendida o no está disponible para registrar un tratamiento.",
+        409,
+      );
+    }
+  }
 
-  return nuevoTratamiento;
+  try {
+    let imagenesSubidas = [];
+    if (files && files.length > 0) {
+      imagenesSubidas = await subirImagenes(files);
+    }
+
+    const nuevoTratamiento = await tratamientoRepository.create({
+      nombre,
+      sexo,
+      celular,
+      servicio: serviciosArray,
+      fecha,
+      observacion,
+      insumos: insumosArray,
+      profesional,
+      rol,
+      cita: citaReservada?._id,
+      imagenes: imagenesSubidas,
+    });
+
+    if (!citaReservada) {
+      await citaRepository.findByClienteAndFecha(nombre, fecha);
+    }
+
+    return nuevoTratamiento;
+  } catch (error) {
+    if (citaReservada && error?.code !== 11000) {
+      await citaRepository.restaurarComoPendiente(citaReservada._id);
+    }
+
+    if (error?.code === 11000) {
+      throw new AppError("Ya existe un tratamiento para esta cita.", 409);
+    }
+
+    throw error;
+  }
 };
 
 const obtenerTratamientos = async () => {

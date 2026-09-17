@@ -18,6 +18,13 @@ const CitaSchema = new Schema(
       enum: ["pendiente", "atendido", "aplazado", "cancelado"],
       default: "pendiente",
     },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      unique: true,
+      sparse: true,
+    },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false }

@@ -83,7 +83,14 @@ const obtenerCitas = async () => {
   return citaRepository.findAll();
 };
 
-const crearCita = async ({ cliente, rol, profesional, servicio, fecha }) => {
+const crearCita = async ({
+  cliente,
+  rol,
+  profesional,
+  servicio,
+  fecha,
+  idempotencyKey,
+}) => {
   if (!cliente || !rol || !profesional || !fecha) {
     throw new AppError(
       "Datos incompletos. cliente, rol, profesional y fecha son requeridos.",
@@ -92,6 +99,25 @@ const crearCita = async ({ cliente, rol, profesional, servicio, fecha }) => {
   }
 
   const rolNormalizado = rol.toLowerCase();
+  const claveIdempotencia = String(idempotencyKey || "").trim();
+
+  if (claveIdempotencia.length > 100) {
+    throw new AppError("La clave de idempotencia no es válida.", 400);
+  }
+
+  if (claveIdempotencia) {
+    const citaExistente = await citaRepository.findByIdempotencyKey(
+      claveIdempotencia,
+    );
+
+    if (citaExistente) {
+      return {
+        cita: await citaRepository.findByIdPopulated(citaExistente._id),
+        creada: false,
+      };
+    }
+  }
+
   const profesionalDoc = await resolverProfesional(profesional, rolNormalizado);
 
   let serviciosValidos = [];
@@ -101,16 +127,36 @@ const crearCita = async ({ cliente, rol, profesional, servicio, fecha }) => {
 
   const fechaObj = validarFecha(fecha);
 
-  const nuevaCita = await citaRepository.create({
-    cliente,
-    rol: rolNormalizado,
-    profesional: profesionalDoc._id,
-    servicio: serviciosValidos.length > 0 ? serviciosValidos : servicio,
-    fecha: fechaObj,
-  });
+  let nuevaCita;
+
+  try {
+    nuevaCita = await citaRepository.create({
+      cliente,
+      rol: rolNormalizado,
+      profesional: profesionalDoc._id,
+      servicio: serviciosValidos.length > 0 ? serviciosValidos : servicio,
+      fecha: fechaObj,
+      idempotencyKey: claveIdempotencia || undefined,
+    });
+  } catch (error) {
+    if (claveIdempotencia && error?.code === 11000) {
+      const citaExistente = await citaRepository.findByIdempotencyKey(
+        claveIdempotencia,
+      );
+
+      if (citaExistente) {
+        return {
+          cita: await citaRepository.findByIdPopulated(citaExistente._id),
+          creada: false,
+        };
+      }
+    }
+
+    throw error;
+  }
 
   const citaPop = await citaRepository.findByIdPopulated(nuevaCita._id);
-  return citaPop;
+  return { cita: citaPop, creada: true };
 };
 
 const actualizarCita = async (id, { cliente, rol, profesional, servicio, fecha }) => {

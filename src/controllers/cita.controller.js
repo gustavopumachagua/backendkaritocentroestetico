@@ -12,19 +12,25 @@ exports.obtenerCitas = asyncHandler(async (req, res) => {
 });
 
 exports.crearCita = asyncHandler(async (req, res) => {
-  const { cliente, rol, profesional, servicio, fecha } = req.body;
-  const citaPop = await citaService.crearCita({
+  const { cliente, rol, profesional, servicio, fecha, idempotencyKey } = req.body;
+  const resultado = await citaService.crearCita({
     cliente,
     rol,
     profesional,
     servicio,
     fecha,
+    idempotencyKey,
   });
 
-  const io = req.app.get("io");
-  io.emit("nuevaCita", citaPop);
+  if (resultado.creada) {
+    const io = req.app.get("io");
+    io.emit("nuevaCita", resultado.cita);
+  }
 
-  res.status(201).json({ message: "Cita creada", cita: citaPop });
+  res.status(resultado.creada ? 201 : 200).json({
+    message: resultado.creada ? "Cita creada" : "Cita ya registrada",
+    cita: resultado.cita,
+  });
 });
 
 exports.actualizarCita = asyncHandler(async (req, res) => {

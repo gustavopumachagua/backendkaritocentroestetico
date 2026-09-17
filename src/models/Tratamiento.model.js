@@ -19,6 +19,12 @@ const TratamientoSchema = new Schema(
     ],
     profesional: { type: String },
     rol: { type: String },
+    cita: {
+      type: Schema.Types.ObjectId,
+      ref: "Cita",
+      unique: true,
+      sparse: true,
+    },
   },
   { timestamps: true, versionKey: false },
 );

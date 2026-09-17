@@ -12,6 +12,7 @@ const MIN_PASSWORD_LENGTH = 6;
 // ─── Citas ───────────────────────────────────────────────────────────────────
 const ESTADOS_CITA_VALIDOS = ["atendido", "aplazado", "cancelado"];
 const ESTADO_CITA_PENDIENTE = "pendiente";
+const ESTADO_CITA_ATENDIDO = "atendido";
 
 // ─── Pagos ───────────────────────────────────────────────────────────────────
 const NUMERO_BOLETA_INICIAL = 224;
@@ -31,6 +32,7 @@ module.exports = {
   MIN_PASSWORD_LENGTH,
   ESTADOS_CITA_VALIDOS,
   ESTADO_CITA_PENDIENTE,
+  ESTADO_CITA_ATENDIDO,
   NUMERO_BOLETA_INICIAL,
   SERIE_BOLETA,
   PROFESIONAL_FIELDS,
