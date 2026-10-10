@@ -4,12 +4,13 @@ const { Schema } = mongoose;
 const PagoSchema = new Schema(
   {
     cita: { type: Schema.Types.ObjectId, ref: "Cita", required: true },
-    cliente: { type: String, required: true },
+    cliente: { type: String, required: true, trim: true, maxlength: 160 },
+    pacienteId: { type: Schema.Types.ObjectId, index: true },
     numeroBoleta: { type: Number, unique: true },
     serie: { type: String, default: "BA01" },
     servicios: [
       {
-        nombre: { type: String, required: true },
+        nombre: { type: String, required: true, trim: true, maxlength: 160 },
         precio: { type: Number, required: true, min: 0 },
       },
     ],

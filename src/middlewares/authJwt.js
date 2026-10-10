@@ -1,16 +1,21 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User.model");
+const userRepository = require("../repositories/user.repository");
 
 async function authJwt(req, res, next) {
-  const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) {
+  const authorization = req.headers.authorization;
+  const [scheme, token, ...extraParts] = String(authorization || "")
+    .trim()
+    .split(/\s+/);
+
+  if (scheme?.toLowerCase() !== "bearer" || !token || extraParts.length > 0) {
     return res.status(401).json({ message: "Token requerido" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select(
-      "activo passwordChangedAt",
+    const user = await userRepository.findById(
+      decoded.id,
+      "activo passwordChangedAt rol nombre",
     );
 
     if (!user) {
@@ -31,8 +36,15 @@ async function authJwt(req, res, next) {
       });
     }
 
-    req.user = decoded;
-    next();
+    // The database is authoritative for permissions. A role change or
+    // suspension is therefore effective immediately instead of waiting for a
+    // previously-issued JWT to expire.
+    req.user = {
+      id: String(user._id),
+      rol: user.rol,
+      nombre: user.nombre,
+    };
+    return next();
   } catch (err) {
     return res.status(403).json({ message: "Token inválido" });
   }

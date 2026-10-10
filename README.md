@@ -1,720 +1,165 @@
-# Backend Karito Centro Estético
+# KARITO BEAUTY ESTHETIC CENTER S.A.C. · Backend
 
-## Sistema Web de Gestión Administrativa para Citas, Servicios, Facturación e Inventarios
+API REST y canal Socket.IO para la operación clínica y administrativa de KARITO BEAUTY ESTHETIC CENTER S.A.C. Gestiona autenticación, usuarios, citas, tratamientos, inventario, pagos, historias clínicas, archivos y notificaciones en tiempo real.
 
-Backend del sistema ERP para el Centro Estético Karito, desarrollado con la arquitectura **Cliente-Servidor** y el stack **MERN** (MongoDB, Express, React, Node.js).
+El cliente React se encuentra en `../Web_Estetico`.
 
-> **Proyecto de tesis:** *"Diseño e Implementación de un Sistema Web de Gestión Administrativa para Citas, Servicios, Facturación e Inventarios en el Centro Estético Karito, utilizando la Arquitectura Cliente-Servidor con las Tecnologías MERN."*
+## Inicio rápido
 
----
-
-## Tabla de Contenidos
-
-- [Características Principales](#características-principales)
-- [Tecnologías Utilizadas](#tecnologías-utilizadas)
-- [Arquitectura del Proyecto](#arquitectura-del-proyecto)
-  - [Arquitectura en Capas](#arquitectura-en-capas)
-  - [Flujo de una Petición HTTP](#flujo-de-una-petición-http)
-  - [Estructura de Directorios](#estructura-de-directorios)
-- [Principios de Código Limpio](#principios-de-código-limpio)
-  - [SOLID](#solid)
-  - [DRY — Don't Repeat Yourself](#dry--dont-repeat-yourself)
-  - [KISS — Keep It Simple, Stupid](#kiss--keep-it-simple-stupid)
-  - [Separation of Concerns](#separation-of-concerns)
-- [Patrones de Diseño](#patrones-de-diseño)
-  - [Repository Pattern](#repository-pattern)
-  - [Service Pattern](#service-pattern)
-  - [Middleware Pattern](#middleware-pattern)
-  - [Factory Pattern](#factory-pattern)
-- [Módulos del Sistema](#módulos-del-sistema)
-- [Endpoints de la API](#endpoints-de-la-api)
-- [Seguridad](#seguridad)
-- [Gestión de Imágenes](#gestión-de-imágenes)
-- [Variables de Entorno](#variables-de-entorno)
-- [Instalación y Ejecución](#instalación-y-ejecución)
-- [Scripts Disponibles](#scripts-disponibles)
-- [Licencia](#licencia)
-
----
-
-## Características Principales
-
-- **Autenticación y autorización** con JWT y control de roles (administrador, doctor, cosmiatra).
-- **Gestión de usuarios** con creación por administrador, suspensión y eliminación.
-- **Gestión de citas** con estados (pendiente, atendido, aplazado, cancelado) y profesional asignado.
-- **Registro de tratamientos** con galería de imágenes optimizadas en Cloudinary.
-- **Inventario** de insumos y servicios por rol, con control de stock y umbrales.
-- **Facturación** con generación automática de número de boleta.
-- **Correos automáticos** de bienvenida y recuperación de contraseña vía Brevo.
-- **Tiempo real** con Socket.IO para sincronización instantánea entre clientes.
-- **Seguridad multicapa** con helmet, CORS, sanitización NoSQL y validación de entrada.
-
----
-
-## Tecnologías Utilizadas
-
-| Categoría     | Tecnología              | Función                                         |
-|---------------|-------------------------|-------------------------------------------------|
-| Runtime       | Node.js                 | Entorno de ejecución del servidor               |
-| Framework     | Express.js              | Framework para la API REST                      |
-| Base de datos | MongoDB + Mongoose      | Base de datos NoSQL con modelado de esquemas     |
-| Autenticación | JWT + bcryptjs          | Tokens de sesión y hashing de contraseñas        |
-| Seguridad     | helmet + cors           | Headers HTTP seguros y control de orígenes       |
-| Validación    | express-validator       | Validación de datos de entrada                   |
-| Archivos      | Multer + Cloudinary     | Recepción y almacenamiento optimizado de imágenes|
-| Email         | Brevo SDK               | Envío de correos transaccionales                 |
-| Tiempo real   | Socket.IO               | Eventos bidireccionales en tiempo real            |
-| Configuración | dotenv                  | Gestión de variables de entorno                  |
-| Desarrollo    | nodemon                 | Recarga automática en desarrollo                 |
-
----
-
-## Arquitectura del Proyecto
-
-### Arquitectura en Capas
-
-El backend implementa una **arquitectura en capas** que separa las responsabilidades en 4 niveles claramente diferenciados:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      CLIENTE (React)                        │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP Request
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  CAPA 1: ROUTES                                             │
-│  Responsabilidad: Declaración de endpoints y middlewares     │
-│  Archivos: src/routes/*.routes.js                           │
-│  No contiene lógica de negocio                              │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  CAPA 2: CONTROLLERS                                        │
-│  Responsabilidad: Orquestación HTTP                         │
-│  - Extrae datos del request (params, body, query)           │
-│  - Delega al Service correspondiente                        │
-│  - Formatea la respuesta HTTP                               │
-│  - Emite eventos Socket.IO cuando corresponde               │
-│  Archivos: src/controllers/*.controller.js                  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  CAPA 3: SERVICES                                           │
-│  Responsabilidad: Lógica de negocio                         │
-│  - Validaciones de dominio                                  │
-│  - Reglas de negocio                                        │
-│  - Orquestación de operaciones entre repositorios           │
-│  - Lanza AppError con código HTTP semántico                 │
-│  Archivos: src/services/*.service.js                        │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  CAPA 4: REPOSITORIES                                       │
-│  Responsabilidad: Acceso a datos                            │
-│  - Encapsula todas las operaciones de Mongoose              │
-│  - Queries, creates, updates, deletes                       │
-│  - Ninguna otra capa interactúa directamente con Mongoose   │
-│  Archivos: src/repositories/*.repository.js                 │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  MODELS (Mongoose Schemas)                                  │
-│  Archivos: src/models/*.model.js                            │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      MongoDB                                │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Flujo de una Petición HTTP
-
-Ejemplo: **Crear una cita** (`POST /api/citas`)
-
-```
-1. Request llega a cita.routes.js
-   └─ Middleware authJwt verifica el token JWT
-
-2. El router invoca crearCita en cita.controller.js
-   └─ Extrae { cliente, rol, profesional, servicio, fecha } de req.body
-   └─ Llama a citaService.crearCita(...)
-
-3. cita.service.js ejecuta la lógica de negocio:
-   ├─ Valida campos requeridos
-   ├─ Resuelve el profesional (por ID o nombre) vía userRepository
-   ├─ Valida servicios por rol vía servicioRepository
-   ├─ Valida la fecha
-   └─ Crea la cita vía citaRepository.create(...)
-
-4. cita.repository.js ejecuta las operaciones Mongoose:
-   └─ new Cita(data).save()
-
-5. El controller recibe el resultado:
-   ├─ Emite evento Socket.IO "nuevaCita"
-   └─ Responde res.status(201).json({ message, cita })
-```
-
-### Estructura de Directorios
-
-```
-Backend_Estetico/
-├── src/
-│   ├── app.js                          # Configuración de Express y middlewares
-│   ├── server.js                       # Bootstrap: HTTP server + Socket.IO
-│   │
-│   ├── config/                         # Configuración externa
-│   │   ├── db.js                       #   Conexión a MongoDB
-│   │   └── cloudinary.js               #   Configuración de Cloudinary
-│   │
-│   ├── constants/                      # Constantes del sistema
-│   │   └── index.js                    #   Valores centralizados (tokens, estados, etc.)
-│   │
-│   ├── errors/                         # Manejo de errores personalizado
-│   │   └── AppError.js                 #   Clase de error con statusCode
-│   │
-│   ├── helpers/                        # Funciones auxiliares reutilizables
-│   │   ├── asyncHandler.js             #   Wrapper async para controllers
-│   │   ├── emailTemplateRenderer.js    #   Renderizado de plantillas de correo
-│   │   └── fileHelper.js              #   Eliminación segura de archivos temporales
-│   │
-│   ├── middlewares/                    # Middlewares de Express
-│   │   ├── authJwt.js                  #   Autenticación JWT
-│   │   ├── authorizeRole.js            #   Autorización por rol (factory)
-│   │   ├── security.js                 #   CORS, helmet, sanitización, errorHandler
-│   │   └── upload.js                   #   Configuración de Multer para imágenes
-│   │
-│   ├── models/                         # Esquemas de Mongoose
-│   │   ├── User.model.js               #   Usuario (con hash de contraseña)
-│   │   ├── Cita.model.js               #   Cita médica
-│   │   ├── Tratamiento.model.js        #   Tratamiento con galería de imágenes
-│   │   ├── Inventario.model.js         #   Insumos y servicios por rol
-│   │   ├── Pago.model.js               #   Facturación con boleta
-│   │   └── Servicio.model.js           #   Catálogo de servicios
-│   │
-│   ├── repositories/                   # Capa de acceso a datos
-│   │   ├── user.repository.js          #   Operaciones Mongoose para Usuario
-│   │   ├── cita.repository.js          #   Operaciones Mongoose para Cita
-│   │   ├── tratamiento.repository.js   #   Operaciones Mongoose para Tratamiento
-│   │   ├── inventario.repository.js    #   Operaciones Mongoose para Inventario
-│   │   ├── pago.repository.js          #   Operaciones Mongoose para Pago
-│   │   └── servicio.repository.js      #   Operaciones Mongoose para Servicio
-│   │
-│   ├── services/                       # Capa de lógica de negocio
-│   │   ├── auth.service.js             #   Login, reset y cambio de contraseña
-│   │   ├── cita.service.js             #   CRUD de citas y búsqueda de pacientes
-│   │   ├── tratamiento.service.js      #   Registro con Cloudinary y búsqueda
-│   │   ├── inventario.service.js       #   Gestión de stock e insumos
-│   │   ├── pago.service.js             #   Registro de pagos y boletas
-│   │   └── user.service.js             #   Gestión de usuarios y profesionales
-│   │
-│   ├── controllers/                    # Orquestadores HTTP (thin controllers)
-│   │   ├── auth.controller.js          #   Endpoints de autenticación
-│   │   ├── cita.controller.js          #   Endpoints de citas
-│   │   ├── tratamiento.controller.js   #   Endpoints de tratamientos
-│   │   ├── inventario.controller.js    #   Endpoints de inventario
-│   │   ├── pago.controller.js          #   Endpoints de pagos
-│   │   └── user.controller.js          #   Endpoints de usuarios
-│   │
-│   ├── routes/                         # Definición de rutas REST
-│   │   ├── auth.routes.js              #   /api/auth/*
-│   │   ├── cita.routes.js              #   /api/citas/*
-│   │   ├── tratamiento.routes.js       #   /api/tratamientos/*
-│   │   ├── inventario.routes.js        #   /api/inventario/*
-│   │   ├── pago.routes.js              #   /api/pagos/*
-│   │   ├── user.routes.js              #   /api/usuarios/*
-│   │   └── upload.routes.js            #   /api/upload/*
-│   │
-│   ├── emails/                         # Plantillas HTML de correo
-│   │   ├── adminWelcomeEmail.html      #   Bienvenida para administrador
-│   │   ├── usuariosWelcomeEmail.html   #   Bienvenida para usuarios
-│   │   └── resetPassword.html          #   Recuperación de contraseña
-│   │
-│   └── utils/                          # Utilidades del sistema
-│       ├── createAdmin.js              #   Seed del administrador inicial
-│       ├── sendEmail.js                #   Envío de correo via Brevo API
-│       └── escapeRegex.js              #   Sanitización de expresiones regulares
-│
-├── uploads/                            # Directorio temporal para archivos subidos
-├── .env                                # Variables de entorno (no versionado)
-├── .gitignore
-├── package.json
-└── README.md
-```
-
----
-
-## Principios de Código Limpio
-
-### SOLID
-
-#### S — Single Responsibility Principle (Responsabilidad Única)
-
-Cada módulo tiene **una sola razón para cambiar**:
-
-| Capa | Responsabilidad única |
-|------|----------------------|
-| **Routes** | Declarar qué endpoint usa qué middleware y qué controller |
-| **Controllers** | Extraer datos del HTTP request, llamar al service, formatear la respuesta |
-| **Services** | Ejecutar la lógica de negocio y reglas del dominio |
-| **Repositories** | Ejecutar operaciones de lectura/escritura contra MongoDB |
-
-**Ejemplo concreto:**
-
-```javascript
-// ❌ ANTES: El controller hacía todo (HTTP + lógica + acceso a datos)
-const crearCita = async (req, res) => {
-  try {
-    const { cliente, rol, profesional } = req.body;
-    // ...validaciones de negocio...
-    const profesionalDoc = await User.findById(profesional);  // acceso directo a Mongoose
-    // ...más lógica...
-    const nuevaCita = new Cita({ ... });
-    await nuevaCita.save();
-    io.emit("nuevaCita", citaPop);
-    res.status(201).json({ ... });
-  } catch (error) {
-    res.status(500).json({ message: "Error" });
-  }
-};
-
-// ✅ DESPUÉS: El controller solo orquesta
-const crearCita = asyncHandler(async (req, res) => {
-  const { cliente, rol, profesional, servicio, fecha } = req.body;
-  const citaPop = await citaService.crearCita({ cliente, rol, profesional, servicio, fecha });
-  req.app.get("io").emit("nuevaCita", citaPop);
-  res.status(201).json({ message: "Cita creada", cita: citaPop });
-});
-```
-
-#### O — Open/Closed Principle (Abierto/Cerrado)
-
-Los módulos están **abiertos a extensión** y **cerrados a modificación**:
-
-- `AppError`: se pueden crear nuevos tipos de error sin modificar el `errorHandler`.
-- `authorizeRole(...roles)`: se pueden agregar nuevos roles sin modificar controllers.
-
-```javascript
-// Agregar un nuevo rol es solo cambiar la llamada en la ruta:
-router.post("/register", authMiddleware, authorizeRole("administrador"), crearUsuario);
-// Si mañana se agrega "recepcionista":
-router.post("/register", authMiddleware, authorizeRole("administrador", "recepcionista"), crearUsuario);
-// Sin modificar el middleware ni el controller.
-```
-
-#### D — Dependency Inversion Principle (Inversión de Dependencias)
-
-Las capas superiores dependen de **abstracciones** (métodos del repositorio), no de **implementaciones concretas** (Mongoose):
-
-```javascript
-// ✅ El service llama al repositorio (abstracción)
-const user = await userRepository.findByEmail(email);
-
-// ❌ NO llama directamente a Mongoose (implementación)
-const user = await User.findOne({ email });
-```
-
-Si en el futuro se migrara de MongoDB a PostgreSQL, solo cambiarían los repositorios.
-
----
-
-### DRY — Don't Repeat Yourself
-
-Se eliminaron todas las duplicaciones detectadas:
-
-| Código duplicado | Antes | Después |
-|-----------------|-------|---------|
-| `renderEmailTemplate()` | Duplicada en 3 archivos | Centralizada en `helpers/emailTemplateRenderer.js` |
-| `deleteLocalFile()` | Duplicada en 2 archivos | Centralizada en `helpers/fileHelper.js` |
-| `try/catch + res.status(500)` | Repetido en ~30 handlers | Centralizado en `helpers/asyncHandler.js` |
-| `req.user.rol !== "administrador"` | Repetido en 4 métodos | Centralizado en `middlewares/authorizeRole.js` |
-| Resolución de profesional por ID/nombre | Duplicada en crear y actualizar cita | Extraída como `resolverProfesional()` en `cita.service.js` |
-
----
-
-### KISS — Keep It Simple, Stupid
-
-- **Constantes centralizadas** en `constants/index.js` en lugar de magic strings dispersos:
-
-  ```javascript
-  // ❌ ANTES: string "mágico" disperso
-  const estadosValidos = ["atendido", "aplazado", "cancelado"];
-
-  // ✅ DESPUÉS: constante importada
-  const { ESTADOS_CITA_VALIDOS } = require("../constants");
-  ```
-
-- **Helpers simples y enfocados**: cada helper hace una sola cosa (`asyncHandler`, `escapeRegex`, `deleteLocalFile`).
-
----
-
-### Separation of Concerns
-
-Cada capa maneja un **único aspecto** del sistema:
-
-```
-HTTP (req/res)          → Controllers
-Lógica de negocio       → Services
-Acceso a datos          → Repositories
-Esquema de datos        → Models
-Seguridad transversal   → Middlewares
-Configuración externa   → Config
-```
-
-**Ejemplo en rutas:** Antes, los archivos de rutas contenían lógica de negocio inline. Ahora solo declaran endpoints:
-
-```javascript
-// ❌ ANTES: Lógica de negocio directamente en el archivo de rutas
-router.get("/buscar", authMiddleware, async (req, res) => {
-  const citas = await Cita.find({ cliente: { $regex: ... } });
-  const nombresUnicos = [...new Set(citas.map(c => c.cliente))];
-  res.json(nombresUnicos);
-});
-
-// ✅ DESPUÉS: La ruta solo declara el endpoint
-router.get("/buscar", authMiddleware, buscarPacientes);
-```
-
----
-
-## Patrones de Diseño
-
-### Repository Pattern
-
-**Problema:** Los controllers accedían directamente a los modelos de Mongoose (`User.findOne()`, `Cita.find()`, etc.), acoplando la lógica de negocio al ORM.
-
-**Solución:** Se creó una capa de repositorios que encapsula todas las operaciones de base de datos.
-
-```
-src/repositories/
-├── user.repository.js          # findByEmail, findById, findAll, create, ...
-├── cita.repository.js          # findAll, findById, create, searchByClientName, ...
-├── inventario.repository.js    # findByRol, findByRolTipoNombre, create, ...
-├── pago.repository.js          # findAll, findByCita, findLastByBoleta, create
-├── servicio.repository.js      # findByRolAndNombres
-└── tratamiento.repository.js   # findAll, create, findByNombreExact
-```
-
-**Beneficio:** Si se cambiara el ORM o la base de datos, solo cambiarían los repositorios. Los services y controllers no se verían afectados.
-
----
-
-### Service Pattern
-
-**Problema:** Los controllers contenían validaciones, reglas de negocio, cálculos y orquestación de múltiples operaciones de base de datos.
-
-**Solución:** Se creó una capa de servicios que contiene toda la lógica de negocio. Los services reciben datos primitivos (no `req`/`res`) y retornan datos o lanzan `AppError`.
-
-```
-src/services/
-├── auth.service.js             # login, resetPassword, changePassword
-├── cita.service.js             # crearCita, actualizarCita, buscarPacientes, ...
-├── inventario.service.js       # agregarItem, descontarInsumos, ...
-├── pago.service.js             # registrarPago, obtenerPagos, ...
-├── tratamiento.service.js      # crearTratamiento, buscarPaciente, ...
-└── user.service.js             # crearUsuario, suspenderUsuario, ...
-```
-
-**Beneficio:** La lógica de negocio es testeable de forma aislada (sin necesitar Express ni HTTP) y reutilizable desde cualquier interfaz (REST, GraphQL, CLI, etc.).
-
----
-
-### Middleware Pattern
-
-Express middlewares se usan para **concerns transversales** que aplican a múltiples rutas:
-
-| Middleware | Responsabilidad |
-|-----------|-----------------|
-| `authJwt` | Verificar token JWT, validar usuario activo, verificar vigencia del token |
-| `authorizeRole` | Verificar que el usuario tiene el rol requerido |
-| `security.js` | Headers de seguridad (helmet), CORS, sanitización NoSQL, error handler |
-| `upload.js` | Configuración de Multer para recepción de imágenes |
-| `asyncHandler` | Propagación automática de errores async al error handler |
-
----
-
-### Factory Pattern
-
-El middleware `authorizeRole` implementa el patrón **Factory** para generar middlewares dinámicamente según los roles requeridos:
-
-```javascript
-// authorizeRole es una factory que retorna un middleware configurado
-const authorizeRole = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user || !allowedRoles.includes(req.user.rol)) {
-      return res.status(403).json({ message: "No autorizado" });
-    }
-    next();
-  };
-};
-
-// Uso: genera un middleware que solo permite "administrador"
-router.post("/register", authMiddleware, authorizeRole("administrador"), crearUsuario);
-```
-
----
-
-## Manejo Centralizado de Errores
-
-El sistema implementa un flujo de errores limpio a través de todas las capas:
-
-```
-Service/Repository  →  lanza AppError(message, statusCode)
-       │
-       ▼
-asyncHandler        →  captura el error y llama next(error)
-       │
-       ▼
-errorHandler        →  detecta AppError por isOperational
-       │                y responde con el statusCode correcto
-       ▼
-Cliente             →  recibe { message: "..." } con el código HTTP adecuado
-```
-
-```javascript
-// En el Service:
-if (!user) {
-  throw new AppError("Usuario no encontrado", 404);
-}
-
-// El errorHandler en security.js lo traduce automáticamente a:
-// HTTP 404 → { "message": "Usuario no encontrado" }
-```
-
----
-
-## Módulos del Sistema
-
-| Módulo | Descripción | Archivos clave |
-|--------|-------------|----------------|
-| **Autenticación** | Login con JWT, reset y cambio de contraseña | `auth.service.js`, `authJwt.js` |
-| **Usuarios** | CRUD de usuarios, roles, suspensión | `user.service.js`, `authorizeRole.js` |
-| **Citas** | Agenda de citas con profesional y servicios | `cita.service.js`, `cita.repository.js` |
-| **Tratamientos** | Registro con galería de imágenes | `tratamiento.service.js`, `cloudinary.js` |
-| **Inventario** | Control de insumos y servicios por rol | `inventario.service.js` |
-| **Pagos** | Facturación con boleta automática | `pago.service.js` |
-| **Correo** | Emails transaccionales vía Brevo | `sendEmail.js`, `emailTemplateRenderer.js` |
-| **Tiempo Real** | Sincronización con Socket.IO | `server.js`, controllers |
-
----
-
-## Endpoints de la API
-
-### Autenticación (`/api/auth`)
-
-| Método | Endpoint | Descripción | Auth |
-|--------|----------|-------------|------|
-| POST | `/api/auth/login` | Inicio de sesión | No |
-| POST | `/api/auth/reset-password` | Envía enlace de recuperación | No |
-| POST | `/api/auth/change-password` | Cambia contraseña con token | No |
-
-### Usuarios (`/api/usuarios`)
-
-| Método | Endpoint | Descripción | Auth | Rol |
-|--------|----------|-------------|------|-----|
-| GET | `/api/usuarios` | Lista todos los usuarios | Sí | Admin |
-| POST | `/api/usuarios/register` | Crea usuario nuevo | Sí | Admin |
-| GET | `/api/usuarios/profesionales` | Lista profesionales activos | Sí | Cualquiera |
-| PUT | `/api/usuarios/:id` | Actualiza perfil | Sí | Cualquiera |
-| PATCH | `/api/usuarios/:id/suspender` | Suspende/activa usuario | Sí | Admin |
-| DELETE | `/api/usuarios/:id` | Elimina usuario | Sí | Admin |
-
-### Citas (`/api/citas`)
-
-| Método | Endpoint | Descripción | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/citas` | Lista todas las citas | Sí |
-| POST | `/api/citas` | Crea nueva cita | Sí |
-| GET | `/api/citas/buscar?nombre=` | Busca pacientes por nombre | Sí |
-| PUT | `/api/citas/:id` | Actualiza cita | Sí |
-| DELETE | `/api/citas/:id` | Elimina cita | Sí |
-| PATCH/PUT | `/api/citas/:id/estado` | Actualiza estado de cita | Sí |
-
-### Tratamientos (`/api/tratamientos`)
-
-| Método | Endpoint | Descripción | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/tratamientos` | Lista tratamientos | Sí |
-| POST | `/api/tratamientos` | Registra tratamiento (multipart) | Sí |
-| GET | `/api/tratamientos/buscar/:nombre` | Busca datos de paciente | Sí |
-
-### Inventario (`/api/inventario`)
-
-| Método | Endpoint | Descripción | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/inventario/:rol` | Lista inventario por rol | No |
-| POST | `/api/inventario` | Agrega/actualiza item | No |
-| PUT | `/api/inventario/descontar` | Descuenta insumos | No |
-| PUT | `/api/inventario/:id` | Actualiza item | No |
-| DELETE | `/api/inventario/:id` | Elimina item | No |
-
-### Pagos (`/api/pagos`)
-
-| Método | Endpoint | Descripción | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/pagos` | Lista todos los pagos | Sí |
-| POST | `/api/pagos` | Registra nuevo pago | Sí |
-| GET | `/api/pagos/:citaId` | Obtiene pagos de una cita | Sí |
-
-### Upload (`/api/upload`)
-
-| Método | Endpoint | Descripción | Auth |
-|--------|----------|-------------|------|
-| POST | `/api/upload` | Sube avatar de usuario | Sí |
-
----
-
-## Seguridad
-
-### Medidas Implementadas
-
-| Capa | Medida | Descripción |
-|------|--------|-------------|
-| **HTTP** | `helmet` | Headers de seguridad (X-Content-Type-Options, X-Frame-Options, etc.) |
-| **CORS** | Lista blanca | Solo orígenes configurados en `FRONTEND_URL` y `CORS_ORIGINS` |
-| **Payload** | Límite 1 MB | Body JSON y URL-encoded limitados a 1 MB |
-| **Query** | Parser simple | `query parser: simple` evita objetos complejos en query strings |
-| **NoSQL** | Sanitización | Bloqueo de claves peligrosas (`$ne`, `$gt`, claves con `.`) |
-| **Regex** | Escape | `escapeRegex()` previene inyección de expresiones regulares |
-| **Auth** | JWT + bcrypt | Tokens con expiración y contraseñas hasheadas con salt |
-| **Sesión** | Invalidación | Tokens emitidos antes de un cambio de contraseña quedan invalidados |
-| **Roles** | `authorizeRole` | Middleware que verifica permisos por rol |
-| **Errores** | Error handler | Respuestas controladas sin exposición de stack traces |
-
-### Flujo de Recuperación de Contraseña
-
-```
-1. POST /api/auth/reset-password  →  Genera token firmado (30 min de validez)
-2. Email con enlace: /new-password?token=...
-3. POST /api/auth/change-password  →  Valida token, cambia contraseña
-4. Todos los JWT anteriores quedan invalidados automáticamente
-```
-
----
-
-## Gestión de Imágenes
-
-### Tratamientos
-
-| Configuración | Valor |
-|--------------|-------|
-| Campo multipart | `imagenes` |
-| Máximo archivos | 5 |
-| Tamaño máximo | 5 MB por imagen |
-| Tipos permitidos | JPEG, PNG, WEBP |
-| Formato final | WebP |
-| Dimensiones máximas | 1600×1600 (`crop: limit`) |
-| Calidad | `auto:good` |
-| Miniatura | 480×360 (`crop: fill`, `quality: auto:eco`) |
-
-### Avatares
-
-| Configuración | Valor |
-|--------------|-------|
-| Campo multipart | `file` |
-| Tamaño máximo | 2 MB |
-| Tipos permitidos | JPEG, PNG, WEBP |
-| Formato final | WebP |
-| Dimensiones | 300×300 (`crop: fill`) |
-| Avatar anterior | Se elimina de Cloudinary al subir uno nuevo |
-
----
-
-## Variables de Entorno
-
-Crear un archivo `.env` en la raíz del proyecto:
+Requisitos: Node.js LTS, npm y una instancia MongoDB.
 
 ```bash
-# Servidor
-PORT=5000
-NODE_ENV=development
-
-# Base de datos
-MONGO_URI=mongodb://localhost:27017/centro_estetico
-
-# Autenticación
-JWT_SECRET=tu_clave_secreta_segura
-
-# Frontend
-FRONTEND_URL=http://localhost:5173
-CORS_ORIGINS=http://localhost:5173
-
-# Cloudinary
-CLOUDINARY_CLOUD_NAME=tu_cloud_name
-CLOUDINARY_API_KEY=tu_api_key
-CLOUDINARY_API_SECRET=tu_api_secret
-
-# Email (Brevo)
-BREVO_API_KEY=tu_brevo_api_key
-MAIL_FROM="Centro Estético <tu_correo@gmail.com>"
-
-# Administrador inicial
-ADMIN_EMAIL=admin@ejemplo.com
-ADMIN_PASSWORD=contrasena_segura
-DEFAULT_AVATAR_URL=https://res.cloudinary.com/...
-```
-
-> **Nota:** No versionar el archivo `.env` en el repositorio. Asegurar que esté incluido en `.gitignore`.
-
----
-
-## Instalación y Ejecución
-
-### Requisitos Previos
-
-- Node.js (v18 o superior)
-- MongoDB (local o Atlas)
-- Cuenta en Cloudinary
-- Cuenta en Brevo (para envío de correos)
-
-### Instalación
-
-```bash
-# Clonar el repositorio
-git clone <url-del-repositorio>
-cd Backend_Estetico
-
-# Instalar dependencias
-npm install
-
-# Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus credenciales
+npm ci
+npm test
+npm run dev
 ```
 
-### Ejecución
+El servidor escucha en `http://localhost:5000` por defecto. Complete todas las credenciales reales solo en `.env` o, preferiblemente, en el gestor de secretos de su plataforma. `.env` nunca debe versionarse.
+
+## Variables de entorno
+
+| Variable | Requerida | Propósito |
+| --- | --- | --- |
+| `NODE_ENV` | No | `development`, `test` o `production`. |
+| `PORT` | No | Puerto HTTP; por defecto `5000`. |
+| `MONGO_URI` | Sí | Cadena de conexión a MongoDB. |
+| `JWT_SECRET` | Sí | Secreto largo, aleatorio y exclusivo por entorno para firmar sesiones. |
+| `FRONTEND_URL` | Sí en producción | Origen HTTPS exacto del frontend y base segura de enlaces de reset. |
+| `CORS_ORIGINS` | No | Orígenes HTTPS extra separados por coma en producción. |
+| `TRUST_PROXY` | No | Use `true` solo detrás de un proxy inverso de confianza. |
+| `CLOUDINARY_*` | Sí para imágenes | Credenciales de Cloudinary. |
+| `BREVO_API_KEY`, `MAIL_FROM` | Sí para correo | Correo transaccional. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Opcional | Administrador de bootstrap; úselo solo con un secreto fuerte y rótelo después. |
+| `DEFAULT_AVATAR_URL` | No | Avatar predeterminado. |
+
+Revise el archivo [`.env.example`](.env.example) para una plantilla sin secretos.
+
+## Arquitectura
+
+```text
+src/
+├── app.js                  # Configuración de Express y composición de rutas
+├── server.js               # HTTP, MongoDB y Socket.IO
+├── config/                 # Adaptadores de infraestructura (MongoDB, Cloudinary)
+├── constants/              # Valores de dominio compartidos
+├── controllers/            # Orquestación HTTP y eventos
+├── errors/                 # AppError operacional
+├── helpers/                # Validación, plantillas, archivos y utilidades puras
+├── middlewares/            # Auth, RBAC, seguridad, uploads y rate limits
+├── models/                 # Esquemas Mongoose
+├── repositories/           # Consultas y persistencia por agregado
+├── routes/                 # Declaración de endpoints y políticas de acceso
+├── services/               # Casos de uso y reglas de negocio
+└── utils/                  # Integraciones auxiliares
+```
+
+El flujo normal es `route → middleware → controller → service → repository → model`. Las rutas contienen política de acceso; los servicios verifican reglas de negocio y propiedad del recurso; los repositorios concentran consultas Mongoose. Esta separación favorece SRP, DRY, Dependency Inversion en los límites de infraestructura y pruebas focalizadas.
+
+## Módulos y contratos HTTP
+
+Todas las rutas están bajo `/api`. Salvo autenticación, requieren `Authorization: Bearer <JWT>`.
+
+| Módulo | Endpoints principales | Acceso |
+| --- | --- | --- |
+| Auth | `POST /auth/login`, `/auth/reset-password`, `/auth/change-password` | Público, con límite de intentos. |
+| Usuarios | `/usuarios`, `/usuarios/register`, `/usuarios/:id` | Administración para alta/listado; perfil propio para actualización. |
+| Citas | `GET/POST /citas`, `PUT/DELETE /citas/:id`, `PATCH /citas/:id/estado`, `GET /citas/buscar` | Personal autenticado; un doctor recibe y modifica solo sus propias citas. |
+| Tratamientos | `GET/POST /tratamientos`, `GET /tratamientos/buscar/:nombre` | Administrador ve globalmente; profesional ve/registra sus propios tratamientos. Los nuevos registros guardan el ID inmutable del profesional derivado del JWT. |
+| Historial de atenciones | `GET /tratamientos/historial-atenciones` | Administración ve el historial global; cada profesional ve solo sus atenciones. Incluye citas atendidas sin tratamiento, identificadas como filas operativas. |
+| Inventario | `GET /inventario/:rol`, `POST/PUT/DELETE /inventario`, `PUT /inventario/descontar` | Lectura para personal autenticado; catálogo solo administrador; descuento limitado al rol propio o administrador. |
+| Pagos | `GET /pagos`, `GET /pagos/:citaId`, `POST /pagos` | Lectura para personal; registro para cosmiatra/administrador. Se valida cita atendida, paciente y servicios. |
+| Historia clínica | `/historias-clinicas`, `/historias-clinicas/finalizadas`, `/historias-clinicas/proximos-controles` | Gestión del médico propietario; controles para cosmiatra/administrador. |
+| Archivos | `POST /upload`, `POST /upload/firma` | Usuario autenticado, con límite y validación de imagen. |
+
+La API devuelve errores operacionales con `{ "message": "…" }` y, en validaciones clínicas, puede incluir `details`. Los detalles internos, trazas y secretos no se exponen al cliente.
+
+### Identidad y correcciones del cliente
+
+`pacienteId` es una referencia interna compartida por citas, tratamientos, pagos e historias clínicas; corregir el nombre no crea otra entidad ni cambia los IDs de las atenciones. Guardar borrador y Finalizar pasan por `patientIdentity.service`, y la API verifica primero la propiedad de la cita/tratamiento del médico. El ID enviado por el navegador nunca concede propiedad.
+
+La propagación actualiza las instantáneas del nombre y `datosFormulario.nombreCompleto` (incluidos documentos finalizados), sin alterar estados, importes ni respuestas clínicas. Los registros heredados se adoptan con nombre anterior y contacto/DNI persistidos sin conflictos; las citas se vinculan por ID o por un único tratamiento verificado del mismo profesional, rol, día de Lima y multiconjunto de servicios. Una reserva nominal sin evidencia queda sin identificar hasta su atención; no se renombra masivamente por texto. Los alias internos permiten reconocer visitas posteriores, pero nunca otorgan acceso clínico.
+
+El autocompletado de citas devuelve `citaPacienteId` para clientes con identidad persistida, deduplicados por `pacienteId` sin mezclar homónimos. Registrar una cita puede enviar esa referencia: `cita.service` valida su formato, existencia, permisos, identidad y nombre vigente antes de reutilizar el cliente, incluso entre especialidades. Un `pacienteId` arbitrario enviado por el navegador se ignora. Las sugerencias antiguas sin identidad siguen admitiendo reservas nominales. La recuperación automática de citas atendidas considera los nombres anteriores persistidos y conserva la exigencia de una única correspondencia; reservas ambiguas, canceladas o aplazadas sin vínculo no se fusionan por texto.
+
+Las escrituras comprueban valores anteriores y evidencia de vinculación. Ante un fallo, se compensan únicamente los valores escritos por esa operación. La respuesta incluye `pacienteActualizado.citasSinIdentidadVerificada` cuando quedan citas nominales sin vínculo seguro. El socket `pacienteActualizado` solo anuncia identidad/nombre a administración, recepción y profesionales afectados; no transmite respuestas clínicas.
+
+La propagación por `pacienteId` incluye todos los estados de cita: `pendiente`, `atendido`, `aplazado` y `cancelado`. Guardar y Finalizar no alteran esos estados ni fechas, servicios o importes al corregir un nombre; los cambios de estado tampoco eliminan la identidad del cliente. Regresión: `node src/services/patientNameAllAppointmentStates.test.js`.
+
+Regresiones específicas: `node src/services/appointmentPatientIdentity.test.js`, `node src/helpers/patientIdentity.test.js` y `node src/services/patientNamePropagation.test.js`. Cubren selección de clientes existentes, autorización, homónimos, alias y propagación en Guardar/Finalizar sin crear nuevas historias.
+
+### Citas atendidas sin registro de tratamiento
+
+Una cita atendida puede tener un pago sin que exista todavía un `Tratamiento`. `attentionHistory` genera un modelo de lectura compartido por `/tratamientos/historial-atenciones` y `/tratamientos/reporte-servicios`, sin insertar documentos ni inventar observaciones, insumos o imágenes. Las filas operativas tienen `_id: cita:<id>`, `citaId`, `origenRegistro: cita` y `registroTratamientoPendiente: true`. No deben usarse como IDs de tratamiento en escrituras clínicas.
+
+Las referencias explícitas de cita tienen prioridad; las coincidencias heredadas exigen una correspondencia única de paciente, profesional, rol, día de Lima y multiconjunto de servicios. Los nombres solo participan cuando ambos registros carecen de `pacienteId`; un homónimo con otra identidad nunca se fusiona. La fecha original del tratamiento se conserva y la hora real de la cita se añade como metadato de lectura. Al registrar el tratamiento real sustituye a la fila operativa. El endpoint clínico `/tratamientos` y los permisos del reporte permanecen sin cambios.
+
+Pruebas: `node src/helpers/attentionHistory.test.js` y `node src/services/tratamiento.service.test.js` (deduplicación, límites de identidad, privacidad de proyecciones, autorización y transición de cita a tratamiento).
+
+Regresiones específicas: `node src/helpers/patientIdentity.test.js`, `node src/services/patientIdentity.service.test.js` y `node src/services/patientNamePropagation.test.js`. Use una base de pruebas para integración; no haga cambios masivos por coincidencia de nombres ni de teléfonos compartidos en producción.
+
+Para corregir una actualización antigua que no conservó el nombre previo, un operador puede ejecutar `synchronizePatientName` con una historia/tratamiento original verificados y `approvedPreviousNames`, exclusivamente junto con `allowLegacyAliasMigration: true`. Primero use `dryRun: true` para revisar los conteos y exclusiones sin escribir. Esta opción no se recibe en ningún endpoint y mantiene las mismas comprobaciones de contacto/DNI, conflictos y concurrencia; no autoriza fusiones nominales ni modifica respuestas clínicas.
+
+Las citas heredadas cuyo vínculo haya sido revisado explícitamente pueden indicarse mediante `approvedAppointmentIds` (máximo 100 IDs de cita), también solo con `allowLegacyAliasMigration: true`. La reparación valida cada ID contra los candidatos persistidos, los nombres anteriores conocidos y la ausencia de otra identidad. Permite vincular reservas canceladas o aplazadas sin inventar un tratamiento, conservando sus estados y todos los demás datos. Los controladores HTTP no aceptan ninguna de estas opciones internas; no use una coincidencia nominal como confirmación de identidad. Regresión: `node src/services/reviewedAppointmentIdentity.test.js`.
+
+## Autorización y seguridad implementada
+
+- **JWT con estado vigente:** cada petición consulta si el usuario sigue activo, si cambió la contraseña y cuál es su rol actual. Un token con rol revocado no conserva privilegios hasta expirar; una suspensión, eliminación o cambio de contraseña desconecta las sesiones Socket.IO locales del usuario.
+- **RBAC y propiedad:** inventario, citas, tratamientos y pagos aplican controles de rol en rutas y reglas de propiedad en servicios. El servidor no acepta del navegador el profesional que firma un tratamiento.
+- **Sockets autenticados y segmentados:** Socket.IO valida el JWT y el estado de cuenta antes de conectar. Los sockets anónimos no reciben datos; citas, tratamientos, pagos, inventario y controles se emiten solo a las salas de rol o usuario que los necesitan.
+- **CORS y headers:** Helmet, allowlist de orígenes, parser de consulta simple, límite de cuerpo JSON/formulario, bloqueo de claves Mongo peligrosas y respuestas `no-store` para datos API. En producción no se habilitan orígenes locales: solo `FRONTEND_URL` y `CORS_ORIGINS` HTTPS explícitos, validados antes de iniciar.
+- **Límites de abuso:** login, reset de contraseña y cargas tienen rate limits por proceso/IP. Las respuestas incluyen `Retry-After` y cabeceras `RateLimit-*`.
+- **Reset seguro:** el enlace se construye desde `FRONTEND_URL`, nunca desde el encabezado `Origin` que entrega el cliente. Las variables de plantillas de correo se escapan como HTML.
+- **Subidas controladas:** MIME preliminar, límites de tamaño/campos/partes y verificación de firmas JPEG/PNG/WEBP antes de enviar a Cloudinary. Los temporales `uploads/` están ignorados por Git y se eliminan después de procesarse. El avatar y la firma solo se modifican por sus endpoints de carga, nunca mediante una URL arbitraria en el perfil.
+- **Credenciales:** las contraseñas se hashean con bcryptjs y las contraseñas temporales se generan con `crypto.randomBytes`, no con `Math.random`.
+- **Dependencias:** las dependencias de producción se actualizaron y las no utilizadas se retiraron. Verifique el estado con `npm audit --omit=dev` en cada entrega.
+
+## Socket.IO
+
+El frontend debe conectarse con el token actual:
+
+```js
+io(SOCKET_URL, { auth: { token } });
+```
+
+Eventos emitidos actualmente incluyen `nuevaCita`, `citaActualizada`, `estadoCitaActualizado`, `citaEliminada`, `tratamientoActualizado`, `inventarioActualizado`, `nuevoPago` e `historiaClinicaFinalizada`.
+
+Los controladores mantienen el contrato de eventos existente y usan el emisor centralizado para restringir destinatarios. Al introducir un evento con PII, defina primero su audiencia y emita a `io.to("role:…")` o `io.to("user:…")`; no use difusión global. La desconexión forzada de sockets cubre el proceso local; para varias réplicas configure un adaptador Socket.IO compartido.
+
+## Pruebas y verificación
 
 ```bash
-# Desarrollo (con recarga automática)
-npm run dev
-
-# Producción
-npm start
+npm test
+node -e "require('./src/app'); console.log('App carga correctamente')"
+npm audit --omit=dev
 ```
 
-El servidor se ejecutará en `http://localhost:5000`.
+Las pruebas actuales cubren validación de historia clínica, limitación de solicitudes, firmas de archivo y escape de plantillas. Para cambios de negocio agregue pruebas de autorización y contratos de servicio antes de dividir servicios clínicos, pagos o PDF.
 
-Al iniciar, el sistema automáticamente:
-1. Conecta a MongoDB.
-2. Verifica/crea el usuario administrador inicial.
-3. Inicia el servidor HTTP con Socket.IO.
+## Operación segura en producción
 
----
+La aplicación incorpora defensa en profundidad, pero la seguridad también depende de la infraestructura. Antes de publicar:
 
-## Scripts Disponibles
+1. Use HTTPS extremo a extremo y configure `FRONTEND_URL`/`CORS_ORIGINS` con dominios exactos.
+2. Guarde `JWT_SECRET`, MongoDB, Brevo y Cloudinary en un secret manager; rote secretos tras cualquier sospecha de exposición.
+3. Configure `TRUST_PROXY=true` solo si el proxy inverso es confiable y controla `X-Forwarded-For`; de lo contrario déjelo desactivado.
+4. Aplique rate limiting y WAF también en el proxy/API gateway. El limitador incorporado es intencionalmente por proceso; en despliegues con varias réplicas use Redis u otro almacén compartido.
+5. Aplique acceso mínimo a MongoDB, copias de seguridad cifradas, cifrado en reposo y una política de retención para datos clínicos y pagos.
+6. Configure Cloudinary con acceso privado/autenticado o un proxy de archivos firmado si las imágenes clínicas y firmas no deben ser accesibles por URL. `secure_url` significa TLS, no autorización por sí solo.
+7. Centralice logs sin incluir tokens, contraseñas, historias clínicas completas ni URL de archivos sensibles. Añada auditoría de acciones críticas antes de requisitos regulatorios formales.
+8. Mantenga Node.js y el lockfile actualizados, ejecute `npm audit` en CI y pruebe login, sockets, carga de imágenes, pagos e historias clínicas tras cada actualización.
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Inicia el servidor con Nodemon (desarrollo) |
-| `npm start` | Inicia el servidor con Node (producción) |
-| `npm test` | Placeholder para pruebas futuras |
+## Límites conocidos y evolución recomendada
 
----
+- La secuencia de boletas y los descuentos de inventario requieren transacciones/operaciones atómicas adicionales para despliegues de alta concurrencia.
+- Los precios de pago todavía dependen de un catálogo que no contiene precio autoritativo en servidor; antes de facturación fiscal real debe existir un catálogo de precios versionado y el total debe calcularse exclusivamente en backend.
+- Los cambios de perfil conservan internamente los nombres anteriores del profesional y actualizan sus tratamientos e historias clínicas por ID. Las lecturas y cambios de perfil solo reconcilian registros heredados mediante el propietario inmutable de una cita vinculada; un nombre editable o alias nunca concede propiedad. Los registros antiguos sin ID ni cita requieren una migración interna revisada: `professionalIdentity.service.reconciliarIdentidadesProfesionales({ dryRun: true, allowNameInference: true })` devuelve conteos sin escrituras, considerando coincidencias únicas del mismo rol y todas las cuentas, incluidas las suspendidas. La inferencia de extensiones/acortamientos exige al menos dos palabras completas; un caso más débil requiere una asignación explícita verificada mediante `approvedLegacyNames` junto con `allowNameInference: true`. Los registros ambiguos o con citas sin propietario válido permanecen sin asignar. Estas opciones son exclusivamente operativas y ningún controlador las acepta desde la API pública.
+- La autenticación del frontend usa JWT en `localStorage` por compatibilidad. Una futura migración a cookies `HttpOnly` exige diseño CSRF y cambio coordinado de cliente/API.
 
-## Licencia
+## Scripts
 
-Proyecto bajo licencia MIT.
+| Comando | Resultado |
+| --- | --- |
+| `npm run dev` | Inicia Nodemon sobre `src/server.js`. |
+| `npm start` | Inicia Node en modo normal. |
+| `npm test` | Ejecuta pruebas con `node --test`. |

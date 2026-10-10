@@ -1,15 +1,29 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
+const { PROFESSIONAL_ROLES } = require("../constants");
 
 const CitaSchema = new Schema(
   {
-    cliente: { type: String, required: true },
-    rol: { type: String, required: true, lowercase: true },
-    profesional: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario" },
+    cliente: { type: String, required: true, trim: true, maxlength: 160 },
+    // Shared immutable patient identity; names remain editable display fields.
+    pacienteId: { type: Schema.Types.ObjectId, index: true },
+    rol: {
+      type: String,
+      required: true,
+      lowercase: true,
+      enum: PROFESSIONAL_ROLES,
+    },
+    profesional: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Usuario",
+      required: true,
+    },
 
     servicio: [
       {
         type: String,
+        trim: true,
+        maxlength: 160,
       },
     ],
     fecha: { type: Date, required: true },

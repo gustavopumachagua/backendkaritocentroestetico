@@ -1,6 +1,8 @@
 const tratamientoService = require("../services/tratamiento.service");
 const asyncHandler = require("../helpers/asyncHandler");
 const { deleteLocalFile } = require("../helpers/fileHelper");
+const { validateImageFiles } = require("../helpers/imageFileValidator");
+const { emitTratamientoEvent } = require("../helpers/realtimeEmitter");
 
 /**
  * Controlador de Tratamientos.
@@ -9,16 +11,23 @@ const { deleteLocalFile } = require("../helpers/fileHelper");
 
 exports.crearTratamiento = asyncHandler(async (req, res) => {
   try {
+    await validateImageFiles(req.files || []);
     const nuevoTratamiento = await tratamientoService.crearTratamiento(
       req.body,
       req.files,
+      req.user,
     );
 
-    const io = req.app.get("io");
-    io.emit("tratamientoActualizado", {
+    const payload = {
       message: "Nuevo tratamiento agregado",
       tratamiento: nuevoTratamiento,
-    });
+    };
+    emitTratamientoEvent(
+      req.app.get("io"),
+      "tratamientoActualizado",
+      payload,
+      nuevoTratamiento,
+    );
 
     res.status(201).json({
       message: "✅ Tratamiento registrado y cita marcada como atendida.",
@@ -36,12 +45,23 @@ exports.crearTratamiento = asyncHandler(async (req, res) => {
 });
 
 exports.obtenerTratamientos = asyncHandler(async (req, res) => {
-  const tratamientos = await tratamientoService.obtenerTratamientos();
+  const tratamientos = await tratamientoService.obtenerTratamientos(req.user);
+  res.json(tratamientos);
+});
+
+exports.obtenerHistorialAtenciones = asyncHandler(async (req, res) => {
+  const atenciones = await tratamientoService.obtenerHistorialAtenciones(req.user);
+  res.json(atenciones);
+});
+
+exports.obtenerTratamientosParaReporteServicios = asyncHandler(async (req, res) => {
+  const tratamientos =
+    await tratamientoService.obtenerTratamientosParaReporteServicios(req.user);
   res.json(tratamientos);
 });
 
 exports.buscarPaciente = asyncHandler(async (req, res) => {
   const { nombre } = req.params;
-  const paciente = await tratamientoService.buscarPaciente(nombre);
+  const paciente = await tratamientoService.buscarPaciente(nombre, req.user);
   res.json(paciente);
 });

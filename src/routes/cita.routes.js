@@ -9,17 +9,19 @@ const {
   buscarPacientes,
 } = require("../controllers/cita.controller");
 const authMiddleware = require("../middlewares/authJwt");
+const authorizeRole = require("../middlewares/authorizeRole");
+const { STAFF_ROLES } = require("../constants");
 
-router.get("/", authMiddleware, obtenerCitas);
-router.get("/buscar", authMiddleware, buscarPacientes);
-router.post("/", authMiddleware, crearCita);
+router.get("/", authMiddleware, authorizeRole(...STAFF_ROLES), obtenerCitas);
+router.get("/buscar", authMiddleware, authorizeRole(...STAFF_ROLES), buscarPacientes);
+router.post("/", authMiddleware, authorizeRole(...STAFF_ROLES), crearCita);
 router
   .route("/:id")
-  .put(authMiddleware, actualizarCita)
-  .delete(authMiddleware, eliminarCita);
+  .put(authMiddleware, authorizeRole(...STAFF_ROLES), actualizarCita)
+  .delete(authMiddleware, authorizeRole(...STAFF_ROLES), eliminarCita);
 router
   .route("/:id/estado")
-  .patch(authMiddleware, actualizarEstadoCita)
-  .put(authMiddleware, actualizarEstadoCita);
+  .patch(authMiddleware, authorizeRole(...STAFF_ROLES), actualizarEstadoCita)
+  .put(authMiddleware, authorizeRole(...STAFF_ROLES), actualizarEstadoCita);
 
 module.exports = router;

@@ -3,6 +3,15 @@ const path = require("path");
 
 const EMAILS_DIR = path.join(__dirname, "..", "emails");
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 /**
  * Lee una plantilla HTML desde el directorio `emails/` y reemplaza
  * las variables con la sintaxis {{variable}}.
@@ -16,7 +25,7 @@ function renderEmailTemplate(templateName, variables = {}) {
   let html = fs.readFileSync(templatePath, "utf8");
 
   for (const key in variables) {
-    html = html.replace(new RegExp(`{{${key}}}`, "g"), variables[key]);
+    html = html.replace(new RegExp(`{{${key}}}`, "g"), escapeHtml(variables[key]));
   }
 
   return html;

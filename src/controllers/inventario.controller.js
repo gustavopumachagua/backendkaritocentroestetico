@@ -1,5 +1,7 @@
 const inventarioService = require("../services/inventario.service");
 const asyncHandler = require("../helpers/asyncHandler");
+const { emitInventarioEvent } = require("../helpers/realtimeEmitter");
+const AppError = require("../errors/AppError");
 
 /**
  * Controlador de Inventario.
@@ -7,8 +9,39 @@ const asyncHandler = require("../helpers/asyncHandler");
  */
 
 exports.obtenerInventario = asyncHandler(async (req, res) => {
-  const { rol } = req.params;
-  const inventario = await inventarioService.obtenerInventario(rol);
+  const rol = String(req.params.rol || "").trim().toLowerCase();
+  const actorRole = String(req.user?.rol || "").trim().toLowerCase();
+  const tipo = req.query.tipo;
+  const consultaCatalogoServicios =
+    actorRole === "cosmiatra" &&
+    String(tipo || "").trim().toLowerCase() === "servicio";
+
+  // A cosmiatra needs to see the service catalogue for either specialty when
+  // registering an appointment. It must not gain access to stock or supplies
+  // belonging to the other specialty.
+  if (
+    actorRole !== "administrador" &&
+    actorRole !== rol &&
+    !consultaCatalogoServicios
+  ) {
+    throw new AppError("No puedes consultar el inventario de otro rol", 403);
+  }
+
+  const inventario = await inventarioService.obtenerInventario(rol, tipo);
+
+  // The appointment form needs names only. Returning a small service catalog
+  // prevents this cross-specialty read from exposing inventory quantities.
+  if (consultaCatalogoServicios) {
+    return res.json(
+      inventario.map((item) => ({
+        _id: item._id,
+        rol: item.rol,
+        tipo: item.tipo,
+        nombre: item.nombre,
+      })),
+    );
+  }
+
   res.json(inventario);
 });
 
@@ -22,8 +55,12 @@ exports.agregarItem = asyncHandler(async (req, res) => {
     umbral,
   });
 
-  const io = req.app.get("io");
-  io.emit("inventarioActualizado", { rol, tipo, action: "agregar", item });
+  emitInventarioEvent(req.app.get("io"), "inventarioActualizado", {
+    rol: item.rol,
+    tipo: item.tipo,
+    action: "agregar",
+    item,
+  });
 
   res.json({ message, item });
 });
@@ -32,8 +69,7 @@ exports.eliminarItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const eliminado = await inventarioService.eliminarItem(id);
 
-  const io = req.app.get("io");
-  io.emit("inventarioActualizado", {
+  emitInventarioEvent(req.app.get("io"), "inventarioActualizado", {
     rol: eliminado.rol,
     tipo: eliminado.tipo,
     action: "eliminar",
@@ -48,6 +84,7 @@ exports.descontarInsumos = asyncHandler(async (req, res) => {
   const actualizados = await inventarioService.descontarInsumos({
     rol,
     insumos,
+    actor: req.user,
   });
 
   res.json({
@@ -66,8 +103,7 @@ exports.actualizarItem = asyncHandler(async (req, res) => {
     umbral,
   });
 
-  const io = req.app.get("io");
-  io.emit("inventarioActualizado", {
+  emitInventarioEvent(req.app.get("io"), "inventarioActualizado", {
     rol: item.rol,
     tipo: item.tipo,
     action: "editar",

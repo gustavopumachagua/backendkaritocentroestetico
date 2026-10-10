@@ -1,5 +1,6 @@
 const citaService = require("../services/cita.service");
 const asyncHandler = require("../helpers/asyncHandler");
+const { emitCitaEvent } = require("../helpers/realtimeEmitter");
 
 /**
  * Controlador de Citas.
@@ -7,12 +8,12 @@ const asyncHandler = require("../helpers/asyncHandler");
  */
 
 exports.obtenerCitas = asyncHandler(async (req, res) => {
-  const citas = await citaService.obtenerCitas();
+  const citas = await citaService.obtenerCitas(req.user);
   res.json(citas);
 });
 
 exports.crearCita = asyncHandler(async (req, res) => {
-  const { cliente, rol, profesional, servicio, fecha, idempotencyKey } = req.body;
+  const { cliente, rol, profesional, servicio, fecha, idempotencyKey, citaPacienteId } = req.body;
   const resultado = await citaService.crearCita({
     cliente,
     rol,
@@ -20,11 +21,11 @@ exports.crearCita = asyncHandler(async (req, res) => {
     servicio,
     fecha,
     idempotencyKey,
-  });
+    citaPacienteId,
+  }, req.user);
 
   if (resultado.creada) {
-    const io = req.app.get("io");
-    io.emit("nuevaCita", resultado.cita);
+    emitCitaEvent(req.app.get("io"), "nuevaCita", resultado.cita);
   }
 
   res.status(resultado.creada ? 201 : 200).json({
@@ -43,20 +44,18 @@ exports.actualizarCita = asyncHandler(async (req, res) => {
     profesional,
     servicio,
     fecha,
-  });
+  }, req.user);
 
-  const io = req.app.get("io");
-  io.emit("citaActualizada", citaActualizada);
+  emitCitaEvent(req.app.get("io"), "citaActualizada", citaActualizada);
 
   res.json({ message: "Cita actualizada", cita: citaActualizada });
 });
 
 exports.eliminarCita = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const citaEliminada = await citaService.eliminarCita(id);
+  const citaEliminada = await citaService.eliminarCita(id, req.user);
 
-  const io = req.app.get("io");
-  io.emit("citaEliminada", { _id: id });
+  emitCitaEvent(req.app.get("io"), "citaEliminada", citaEliminada, { _id: id });
 
   res.json({ message: "Cita eliminada", cita: citaEliminada });
 });
@@ -65,16 +64,19 @@ exports.actualizarEstadoCita = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { estado } = req.body;
 
-  const citaActualizada = await citaService.actualizarEstadoCita(id, estado);
+  const citaActualizada = await citaService.actualizarEstadoCita(
+    id,
+    estado,
+    req.user,
+  );
 
-  const io = req.app.get("io");
-  io.emit("estadoCitaActualizado", citaActualizada);
+  emitCitaEvent(req.app.get("io"), "estadoCitaActualizado", citaActualizada);
 
   res.json({ message: "Estado actualizado", cita: citaActualizada });
 });
 
 exports.buscarPacientes = asyncHandler(async (req, res) => {
   const nombre = req.query.nombre;
-  const resultado = await citaService.buscarPacientes(nombre);
+  const resultado = await citaService.buscarPacientes(nombre, req.user);
   res.json(resultado);
 });

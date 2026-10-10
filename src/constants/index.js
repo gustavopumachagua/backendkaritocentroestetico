@@ -9,6 +9,12 @@ const RESET_TOKEN_EXPIRES_IN = "30m";
 const LOGIN_TOKEN_EXPIRES_IN = "1d";
 const MIN_PASSWORD_LENGTH = 6;
 
+// ─── Roles ─────────────────────────────────────────────────────────────────
+const USER_ROLES = Object.freeze(["administrador", "doctor", "cosmiatra"]);
+const STAFF_ROLES = USER_ROLES;
+const PROFESSIONAL_ROLES = Object.freeze(["doctor", "cosmiatra"]);
+const PAYMENT_ROLES = Object.freeze(["administrador", "cosmiatra"]);
+
 // ─── Citas ───────────────────────────────────────────────────────────────────
 const ESTADOS_CITA_VALIDOS = ["atendido", "aplazado", "cancelado"];
 const ESTADO_CITA_PENDIENTE = "pendiente";
@@ -30,6 +36,10 @@ module.exports = {
   RESET_TOKEN_EXPIRES_IN,
   LOGIN_TOKEN_EXPIRES_IN,
   MIN_PASSWORD_LENGTH,
+  USER_ROLES,
+  STAFF_ROLES,
+  PROFESSIONAL_ROLES,
+  PAYMENT_ROLES,
   ESTADOS_CITA_VALIDOS,
   ESTADO_CITA_PENDIENTE,
   ESTADO_CITA_ATENDIDO,

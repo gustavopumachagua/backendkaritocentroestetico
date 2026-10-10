@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
+const { PROFESSIONAL_ROLES } = require("../constants");
 
 const inventarioSchema = new mongoose.Schema(
   {
     rol: {
       type: String,
-      enum: ["cosmiatra", "doctor"],
+      enum: PROFESSIONAL_ROLES,
       required: true,
     },
     tipo: {
@@ -16,6 +17,7 @@ const inventarioSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      maxlength: 160,
     },
     stock: {
       type: Number,

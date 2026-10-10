@@ -9,6 +9,10 @@ const findByRol = (rol) => {
   return Inventario.find({ rol });
 };
 
+const findByRolAndTipo = (rol, tipo) => {
+  return Inventario.find({ rol, tipo });
+};
+
 const findById = (id) => {
   return Inventario.findById(id);
 };
@@ -36,6 +40,7 @@ const deleteById = (id) => {
 
 module.exports = {
   findByRol,
+  findByRolAndTipo,
   findById,
   findByRolTipoNombre,
   findByRolAndNombre,

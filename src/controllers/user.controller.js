@@ -1,5 +1,7 @@
 const userService = require("../services/user.service");
 const asyncHandler = require("../helpers/asyncHandler");
+const AppError = require("../errors/AppError");
+const { disconnectUserSockets, emitProfessionalUpdatedEvent } = require("../helpers/realtimeEmitter");
 
 /**
  * Controlador de Usuarios.
@@ -9,9 +11,18 @@ const asyncHandler = require("../helpers/asyncHandler");
 
 const actualizarPerfil = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { nombre, avatar } = req.body;
 
-  const user = await userService.actualizarPerfil(id, { nombre, avatar });
+  if (req.user.id !== id) {
+    throw new AppError("No tienes permiso para editar este perfil", 403);
+  }
+
+  const { nombre, cmp } = req.body;
+
+  // Las URLs de avatar se actualizan exclusivamente por /api/upload, que
+  // valida el archivo antes de persistirlo. No aceptar una URL arbitraria
+  // aquí evita que el perfil se convierta en un almacén de contenido remoto.
+  const user = await userService.actualizarPerfil(id, { nombre, cmp });
+  emitProfessionalUpdatedEvent(req.app.get("io"), user);
 
   res.json({
     message: "Perfil actualizado correctamente",
@@ -43,6 +54,10 @@ const suspenderUsuario = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const usuario = await userService.suspenderUsuario(id);
 
+  if (!usuario.activo) {
+    disconnectUserSockets(req.app.get("io"), usuario.id);
+  }
+
   res.json({
     message: `Usuario ${
       usuario.activo ? "activado" : "suspendido"
@@ -54,6 +69,7 @@ const suspenderUsuario = asyncHandler(async (req, res) => {
 const eliminarUsuario = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const usuarioEliminado = await userService.eliminarUsuario(id);
+  disconnectUserSockets(req.app.get("io"), usuarioEliminado);
 
   res.json({
     message: "Usuario eliminado correctamente",

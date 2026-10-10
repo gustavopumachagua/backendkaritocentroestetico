@@ -77,6 +77,8 @@ const login = async ({ email, password }) => {
       email: user.email,
       rol: user.rol,
       avatar: user.avatar || process.env.DEFAULT_AVATAR_URL,
+      cmp: user.cmp || null,
+      firmaDigital: user.firmaDigital || null,
     },
   };
 };
@@ -163,7 +165,10 @@ const changePassword = async ({ resetToken, newPassword }) => {
   user.passwordChangedAt = new Date();
   await user.save();
 
-  return { message: "Contraseña cambiada correctamente" };
+  return {
+    message: "Contraseña cambiada correctamente",
+    userId: String(user._id),
+  };
 };
 
 module.exports = { login, resetPassword, changePassword };

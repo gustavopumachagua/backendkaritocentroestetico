@@ -1,5 +1,6 @@
 const pagoService = require("../services/pago.service");
 const asyncHandler = require("../helpers/asyncHandler");
+const { emitPagoEvent } = require("../helpers/realtimeEmitter");
 
 /**
  * Controlador de Pagos.
@@ -16,10 +17,9 @@ exports.registrarPago = asyncHandler(async (req, res) => {
     metodoPago,
     total,
     fecha,
-  });
+  }, req.user);
 
-  const io = req.app.get("io");
-  io.emit("nuevoPago", nuevoPago);
+  emitPagoEvent(req.app.get("io"), "nuevoPago", nuevoPago);
 
   res.status(201).json({
     message: "Pago registrado y cita actualizada a cancelado",
@@ -28,12 +28,12 @@ exports.registrarPago = asyncHandler(async (req, res) => {
 });
 
 exports.obtenerPagos = asyncHandler(async (req, res) => {
-  const pagos = await pagoService.obtenerPagos();
+  const pagos = await pagoService.obtenerPagos(req.user);
   res.json(pagos);
 });
 
 exports.obtenerPagosPorCita = asyncHandler(async (req, res) => {
   const { citaId } = req.params;
-  const pagos = await pagoService.obtenerPagosPorCita(citaId);
+  const pagos = await pagoService.obtenerPagosPorCita(citaId, req.user);
   res.json(pagos);
 });

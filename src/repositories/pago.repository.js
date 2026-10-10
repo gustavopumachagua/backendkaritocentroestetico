@@ -9,7 +9,7 @@ const findAll = () => {
   return Pago.find()
     .populate({
       path: "cita",
-      select: "cliente fecha estado profesional",
+      select: "cliente pacienteId fecha estado profesional",
       populate: {
         path: "profesional",
         select: "nombre rol",
@@ -20,6 +20,19 @@ const findAll = () => {
 
 const findByCita = (citaId) => {
   return Pago.find({ cita: citaId });
+};
+
+const findByCitas = (citaIds) => {
+  return Pago.find({ cita: { $in: citaIds } })
+    .populate({
+      path: "cita",
+      select: "cliente pacienteId fecha estado profesional",
+      populate: {
+        path: "profesional",
+        select: "nombre rol",
+      },
+    })
+    .sort({ fecha: -1 });
 };
 
 const findOneByCita = (citaId) => {
@@ -38,6 +51,7 @@ const create = (pagoData) => {
 module.exports = {
   findAll,
   findByCita,
+  findByCitas,
   findOneByCita,
   findLastByBoleta,
   create,
