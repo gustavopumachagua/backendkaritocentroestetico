@@ -9,7 +9,7 @@ test("an appointment fallback only authorizes unowned records and names never au
   let criteria;
   Tratamiento.find = (filter) => {
     criteria = filter;
-    return { populate() { return this; }, sort() { return []; } };
+    return { populate() { return this; }, sort() { return this; }, lean() { return []; } };
   };
 
   await tratamientoRepository.findByOwnerOrCitas("professional-a", "Nombre Compartido", "doctor", ["appointment-a"]);

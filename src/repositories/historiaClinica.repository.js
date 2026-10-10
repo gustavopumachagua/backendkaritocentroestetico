@@ -55,7 +55,7 @@ const findFinalizadasConProximoControl = () =>
  * the immutable `medico` reference and only updates document metadata; no
  * patient or clinical-answer fields are touched.
  */
-const updateDoctorMetadata = (medicoId, { nombre, cmp, firmaDigital }) =>
+const updateDoctorMetadata = (medicoId, { nombre, cmp, firmaDigital, firmaDigitalAsset }) =>
   HistoriaClinica.updateMany(
     { medico: medicoId },
     {
@@ -63,6 +63,7 @@ const updateDoctorMetadata = (medicoId, { nombre, cmp, firmaDigital }) =>
         "firmaMedico.nombre": nombre,
         "firmaMedico.cmp": cmp,
         "firmaMedico.url": firmaDigital,
+        ...(firmaDigitalAsset ? { "firmaMedico.asset": firmaDigitalAsset } : {}),
         "datosFormulario.medicoTratante": nombre,
         "datosFormulario.nombreFirmaMedico": nombre,
         "datosFormulario.cmpConstancia": cmp,

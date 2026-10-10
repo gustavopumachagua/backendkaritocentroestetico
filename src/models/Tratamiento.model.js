@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const { PROFESSIONAL_ROLES } = require("../constants");
+const mediaAssetSchema = require("./mediaAsset.schema");
 
 const TratamientoSchema = new Schema(
   {
@@ -19,6 +20,7 @@ const TratamientoSchema = new Schema(
         url: String,
         thumbnailUrl: String,
         public_id: String,
+        asset: { type: mediaAssetSchema, default: null },
       },
     ],
     // The display name is retained for existing screens, but authorization

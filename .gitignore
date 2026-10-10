@@ -68,6 +68,7 @@ lib-cov/
 .env.*
 credentials/
 secrets/
+migration-state/
 *.pem
 *.key
 *.crt

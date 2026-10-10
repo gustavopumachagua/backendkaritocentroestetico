@@ -49,3 +49,14 @@ test("createRateLimiter blocks requests that exceed its fixed window", () => {
   assert.equal(blockedResponse.headers["RateLimit-Remaining"], "0");
   assert.ok(Number(blockedResponse.headers["Retry-After"]) >= 1);
 });
+
+test("account-scoped media limits cannot be bypassed by changing the client IP", () => {
+  const limiter = createRateLimiter({ windowMs: 60_000, max: 1, message: "Limit", keyGenerator: (req) => req.user.id });
+  let accepted = 0;
+  limiter({ ip: "203.0.113.1", user: { id: "account" } }, createResponse(), () => { accepted += 1; });
+  const rejected = createResponse();
+  limiter({ ip: "203.0.113.2", user: { id: "account" } }, rejected, () => { accepted += 1; });
+  assert.equal(rejected.statusCode, 429);
+  limiter({ ip: "203.0.113.1", user: { id: "another-account" } }, createResponse(), () => { accepted += 1; });
+  assert.equal(accepted, 2);
+});

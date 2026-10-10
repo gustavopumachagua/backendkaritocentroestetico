@@ -1,4 +1,4 @@
-const cloudinary = require("../config/cloudinary");
+const mediaAdapter = require("./cloudinaryMedia.adapter");
 const tratamientoRepository = require("../repositories/tratamiento.repository");
 const citaRepository = require("../repositories/cita.repository");
 const professionalIdentityService = require("./professionalIdentity.service");
@@ -15,13 +15,6 @@ const { OBJECT_ID_REGEX, PROFESSIONAL_ROLES } = require("../constants");
  */
 
 // ─── Helpers privados ────────────────────────────────────────────────────────
-
-function buildCloudinaryUrl(publicId, transformation) {
-  return cloudinary.url(publicId, {
-    secure: true,
-    transformation,
-  });
-}
 
 function isSameId(first, second) {
   return String(getRecordId(first)) === String(getRecordId(second));
@@ -100,10 +93,8 @@ async function subirImagenes(files) {
 
   for (const file of files) {
     try {
-      const result = await cloudinary.uploader.upload(file.path, {
+      const asset = await mediaAdapter.uploadImage(file, {
         folder: "tratamientos",
-        resource_type: "image",
-        format: "webp",
         transformation: [
           {
             width: 1600,
@@ -115,18 +106,8 @@ async function subirImagenes(files) {
       });
 
       imagenesSubidas.push({
-        url: result.secure_url,
-        thumbnailUrl: buildCloudinaryUrl(result.public_id, [
-          {
-            width: 480,
-            height: 360,
-            crop: "fill",
-            gravity: "auto",
-            quality: "auto:eco",
-            fetch_format: "auto",
-          },
-        ]),
-        public_id: result.public_id,
+        // Only the persisted treatment id authorizes the eventual delivery URL.
+        url: "", thumbnailUrl: "", public_id: asset.public_id, asset,
       });
     } finally {
       deleteLocalFile(file.path);

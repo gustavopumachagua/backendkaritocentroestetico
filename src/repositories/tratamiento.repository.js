@@ -27,7 +27,7 @@ const populateProfessionalIdentity = (query) =>
  */
 
 const findAll = () => {
-  return populateProfessionalIdentity(Tratamiento.find()).sort({ createdAt: -1 });
+  return populateProfessionalIdentity(Tratamiento.find()).sort({ createdAt: -1 }).lean();
 };
 
 // The daily service report needs only operational fields, not clinical notes
@@ -51,7 +51,7 @@ function getOwnerCriteria(profesionalId, profesionalNombre, rol) {
 const findByOwner = (profesionalId, profesionalNombre, rol) =>
   populateProfessionalIdentity(
     Tratamiento.find(getOwnerCriteria(profesionalId, profesionalNombre, rol)),
-  ).sort({ createdAt: -1 });
+  ).sort({ createdAt: -1 }).lean();
 
 /**
  * Legacy treatment rows may predate `profesionalId`/`rol`, but still retain
@@ -81,7 +81,7 @@ const findByOwnerOrCitas = (
 
   return populateProfessionalIdentity(Tratamiento.find(criteria)).sort({
     createdAt: -1,
-  });
+  }).lean();
 };
 
 const create = (tratamientoData) => {
@@ -100,9 +100,12 @@ const findByNombreExactAndOwner = (
       nombre: { $regex: new RegExp(`^${nombre}$`, "i") },
       ...getOwnerCriteria(profesionalId, profesionalNombre, rol),
     }),
-  );
+  ).lean();
 
 const findById = (id) => Tratamiento.findById(id);
+// Lean preserves genuinely absent legacy subdocument ids instead of inventing
+// different image ids each time Mongoose hydrates an older stored array.
+const findMediaById = (id) => Tratamiento.findById(id).lean();
 
 const findByCita = (citaId) => Tratamiento.findOne({ cita: citaId });
 
@@ -114,7 +117,7 @@ const findByNombreAndOwner = (nombre, profesionalId, profesionalNombre, rol) => 
       nombre: { $regex: new RegExp(`^${nombreEscapado}$`, "i") },
       ...getOwnerCriteria(profesionalId, profesionalNombre, rol),
     }),
-  ).sort({ createdAt: -1 });
+  ).sort({ createdAt: -1 }).lean();
 };
 
 const missingProfessionalIdCriteria = () => ({
@@ -216,6 +219,7 @@ const restorePacienteByCitaIfCurrentName = (
   );
 
 module.exports = {
+  findMediaById,
   findAll,
   findForServiceReport,
   findByOwner,

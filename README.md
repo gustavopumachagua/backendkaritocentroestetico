@@ -16,6 +16,7 @@ El proyecto es una aplicación Node.js escrita en JavaScript con módulos Common
 - [Flujos de negocio](#flujos-de-negocio)
 - [Tiempo real con Socket.IO](#tiempo-real-con-socketio)
 - [Seguridad implementada](#seguridad-implementada)
+- [Imágenes protegidas y migración](#imágenes-protegidas-y-migración)
 - [Pruebas y mantenimiento](#pruebas-y-mantenimiento)
 - [Despliegue y operación](#despliegue-y-operación)
 - [Límites conocidos y evolución](#límites-conocidos-y-evolución)
@@ -235,7 +236,8 @@ Todas las rutas se montan bajo `/api`. Las protegidas reciben `Authorization: Be
 | Pagos | `GET /pagos`, `GET /pagos/:citaId`, `POST /pagos` | Registro cosmiatra/administrador; lectura autenticada, restringida a citas propias para doctor. |
 | Historia clínica | `GET/PUT /historias-clinicas`, `GET/PUT /historias-clinicas/citas/:citaId`, `GET /historias-clinicas/:id`, `GET /historias-clinicas/finalizadas` | Doctor propietario, mediante identidad del origen y del documento. |
 | Próximos controles | `GET /historias-clinicas/proximos-controles` | Cosmiatra/administrador; controles finalizados cuya fecha no ha pasado. |
-| Archivos | `POST /upload`, `POST /upload/firma` | Cuenta autenticada; multipart `file`, límites y validación. La UI reserva CMP/firma al doctor; la ruta de firma no aplica un middleware exclusivo de ese rol. |
+| Archivos | `POST /upload`, `POST /upload/firma` | Cuenta autenticada; firma exclusiva del doctor; multipart `file`, límites y validación. Nuevas imágenes con entrega `authenticated`. |
+| Medios protegidos | `GET /media/avatars/:userId`, `/media/signatures/:userId`, `/media/histories/:historyId/signature`, `/media/treatments/:treatmentId/images/:imageId` | Entrega binaria tras JWT y política de propiedad. No redirige a Cloudinary ni devuelve enlaces temporales. |
 
 Las respuestas operacionales usan `{ "message": "..." }`; la validación clínica puede añadir `details.errors` o `details.missingSections`. Hay respuestas específicas por módulo, no una envoltura universal. Se emplean, entre otros, `400` para entrada inválida, `401/403` para autenticación/permisos, `404` para recursos no encontrados, `409` para conflictos, `422` para finalización incompleta y `429` para límites de solicitudes. Los fallos internos no deben exponer secretos o trazas.
 
@@ -295,6 +297,69 @@ HTTP y MongoDB siguen siendo la fuente de verdad. Los eventos avisan de cambios,
 
 CORS no autentica solicitudes y `secure_url` de Cloudinary significa transporte HTTPS, no acceso privado. Una firma subida es una imagen de firma manuscrita; no constituye una firma criptográfica basada en certificados. Estas defensas no sustituyen auditorías, cifrado de infraestructura, autorización de archivos, backups ni revisión periódica de dependencias.
 
+## Imágenes protegidas y migración
+
+### Alcance y arquitectura
+
+Las nuevas firmas, fotos de perfil y fotografías de tratamientos se suben con `type: "authenticated"`, conservando las carpetas `firmas`, `avatars` y `tratamientos`. Los logos, fondos y avatares genéricos del frontend son recursos públicos de diseño, no fotografías personales. Los documentos ya descargados no pueden revocarse remotamente.
+
+La persistencia añade `User.avatarAsset`, `User.firmaDigitalAsset`, `Tratamiento.imagenes[].asset` y `HistoriaClinica.firmaMedico.asset`. Cada objeto conserva identificadores estables (`asset_id`, `public_id`), tipo de recurso/entrega, formato, versión y dimensiones/tamaño disponibles. Los campos URL heredados permanecen internamente para compatibilidad, pero las respuestas destinadas al navegador los reemplazan por rutas de `/api/media`; no se almacenan enlaces temporales firmados.
+
+Al reemplazar una foto de perfil o firma se conservan las referencias anteriores en `User.retiredMediaAssets`, un archivo de metadatos privado y excluido de las respuestas del cliente. No contiene bytes de imágenes ni concede un endpoint público de acceso; evita perder la asociación necesaria para proteger después una imagen pública anterior. El inventario de migración lo incluye explícitamente y usa guardas por posición, tipo de imagen, valor anterior e ID disponible, sin reemplazar la foto/firma vigente. No hay eliminación automática del archivo ni de recursos Cloudinary; su conservación y cualquier limpieza posterior requieren una política de retención y autorización independiente.
+
+Los helpers de medios validan metadatos y URLs heredadas contra la cuenta y carpeta conocidas. El servicio aplica propiedad, el adaptador obtiene los bytes de Cloudinary y las rutas/controlador presentan la respuesta. El cliente no puede elegir una URL remota o un `public_id` arbitrario: la imagen se resuelve desde el registro autorizado. Esta separación evita convertir la API en un proxy abierto o permitir acceso por nombres editables.
+
+| Imagen | Política de lectura |
+| --- | --- |
+| Foto de perfil | Personal autenticado y activo; la cuenta de destino debe estar activa. |
+| Firma del perfil | Doctor propietario de la cuenta. Un administrador no obtiene firmas ajenas por administrar usuarios. |
+| Firma de una historia | Doctor propietario por `historia.medico`; no concede acceso clínico a cosmiatra/administrador. |
+| Foto de tratamiento | Administrador o profesional propietario por ID y rol compatible. La cita vinculada puede demostrar propiedad heredada únicamente cuando falta `profesionalId`; nombres y alias nunca conceden acceso. |
+
+Los endpoints rechazan sesiones ausentes, inválidas o caducadas con `401`, y permisos insuficientes con `403`. Entregan bytes JPEG/PNG/WEBP con `Cache-Control: private, no-store`, sin ETag ni URL externa. Se restringen host/ruta de Cloudinary, redirecciones, tamaños y tiempos de espera. La firma en PDF conserva las mismas comprobaciones; no existe una excepción pública para exportar.
+
+El backend crea un acceso interno de corta duración mediante `private_download_url` y nunca lo entrega al navegador. No depende de tokens/cookies CDN Advanced. La descarga por API no aprovecha caché CDN y consume ancho de banda: valide las cuotas de su cuenta gratuita y la latencia en staging. Consulte las [opciones oficiales de acceso](https://cloudinary.com/documentation/control_access_to_media).
+
+### Estado de las imágenes anteriores
+
+**La protección de nuevas cargas no cambia las imágenes públicas existentes.** Hasta migrarlas, alguien que ya conozca su antigua URL de entrega `upload` podría seguir accediendo directamente a Cloudinary. El proxy permite desplegar primero la aplicación protegida y conservar la visualización mientras se revisa el inventario; no representa una revocación retroactiva de esas URLs.
+
+La herramienta [`scripts/migrate-protected-media.js`](scripts/migrate-protected-media.js) está preparada, no forma parte del arranque y no ejecuta migraciones automáticamente. Importarla o ejecutar sus tests no carga credenciales ni conecta MongoDB/Cloudinary. Al invocarla realmente, usa las credenciales privadas del backend. **La migración real exige autorización operativa separada, respaldo y un piloto aprobado; no debe ejecutarse como parte de `npm start` ni de la compilación.**
+
+### Procedimiento operativo seguro
+
+1. Despliegue coordinadamente backend/frontend, pruebe sus permisos y respalde MongoDB. Documente entorno, responsable y alcance autorizado; pruebe primero en staging. No use pacientes reales en fixtures.
+2. Ejecute únicamente un inventario/simulación autorizado. Lee registros mínimos y metadatos de Cloudinary; no escribe remotamente ni descarga imágenes. Deduplica referencias por recurso, verifica propiedad por ID y excluye recursos externos, conflictos de propietarios, formatos desconocidos o registros sin evidencia suficiente. Los tratamientos heredados sin `profesionalId` se excluyen de esta herramienta, incluso si la API puede autorizar su lectura por cita; deben revisarse/vincularse en un procedimiento separado antes de migrarlos. Las exclusiones pendientes impiden declarar protegidas todas las imágenes anteriores.
+
+   ```bash
+   node scripts/migrate-protected-media.js --limit 1 --manifest migration-state/pilot.json
+   ```
+
+3. Revise el manifiesto privado y confirme expresamente el `asset_id` del piloto. Se guarda bajo `migration-state/`, excluido de Git, con directorio `0700` y archivos `0600`. Contiene identificadores/referencias y valores anteriores necesarios para recuperación; sigue siendo información sensible. No lo adjunte a tickets ni lo publique. La herramienta no sobrescribe un inventario anterior: use otro nombre para uno nuevo.
+4. **Solo después de la aprobación específica del piloto**, ejecute:
+
+   ```bash
+   node scripts/migrate-protected-media.js --apply --confirm-private-migration --asset-id <asset_id_verificado> --manifest migration-state/pilot.json
+   ```
+
+   Para un manifiesto expresamente revisado, `--limit 1` también permite seleccionar su primer recurso. Un lote exige IDs explícitos, repitiendo `--asset-id`, y admite como máximo 25. El bloqueo del manifiesto evita ejecuciones concurrentes; tras un cierre abrupto, revise el estado y confirme que no existe otro proceso antes de retirar manualmente su `.lock`.
+5. El cambio usa `rename` conservando `public_id`, de `upload` a `authenticated`, con `overwrite: false` e `invalidate: true`. Comprueba que `asset_id`, formato, tamaño, dimensiones y hash de contenido disponible no cambiaron, antes/después del cambio; actualiza únicamente los metadatos de las referencias con guardas de valor anterior/propiedad. No copia ni vuelve a subir la imagen, no borra recursos y no altera respuestas clínicas. Véase la [API oficial de rename](https://cloudinary.com/documentation/image_upload_api_reference#rename).
+6. Verifique sesión propia, recurso ajeno (`403`), solicitud sin sesión (`401`), firma de perfil/historia y PDF, fotos originales y miniaturas. Compruebe con una solicitud nueva no autenticada tanto la URL antigua como sus variantes conocidas después de la propagación de invalidación. Solo entonces apruebe el siguiente lote.
+
+Cloudinary y MongoDB no forman una transacción global. Los checkpoints registran cada fase y referencia; los errores se resumen sin mensajes del proveedor, credenciales o contenido clínico. Un fallo de persistencia deja la imagen protegida, no pública. Reejecutar el mismo manifiesto con los mismos objetivos detecta el tipo/ID existente y completa asociaciones pendientes; no duplica el recurso. Se reintentan de forma acotada únicamente errores transitorios de Cloudinary (`429`/`5xx`). Un cambio concurrente de perfil o referencia se detiene para revisión, sin sobrescribirlo.
+
+La recuperación prioriza reparar referencias manteniendo la privacidad. **No hay operación de eliminación ni rollback automático hacia `upload`.** Volver a publicar una imagen exigiría una nueva autorización excepcional, revisión manual y un procedimiento separado. Conserve el respaldo y los checkpoints bajo la política de retención acordada.
+
+La invalidación de CDN requiere propagación y no borra archivos ya descargados ni todas las cachés del navegador/proxies. No declare una URL antigua revocada antes de comprobarla; algunas configuraciones de cuenta necesitan revisión adicional. Consulte las [limitaciones de invalidación](https://cloudinary.com/documentation/invalidate_cached_media_assets_on_the_cdn).
+
+### Pruebas sin servicios reales
+
+```bash
+node src/services/mediaMigration.service.test.js
+```
+
+Los dobles de Cloudinary/MongoDB prueban selección explícita, confirmación, inventario con propiedad, integridad, guardas optimistas, fallo parcial, reanudación sin duplicados y reintentos acotados. No demuestran por sí solos la revocación CDN, las cuotas o la caducidad real de la cuenta; esos controles requieren el piloto autorizado. Los manifests y datos de producción nunca deben ser fixtures.
+
 ## Pruebas y mantenimiento
 
 ```bash
@@ -329,7 +394,7 @@ Si actualiza dependencias, revise el cambio de lockfile, ejecute la suite y vali
 4. Aplique límites de solicitudes, tamaño y conexiones también en el proxy/API gateway. Para múltiples instancias, agregue limitación distribuida y adaptador Socket.IO; los mecanismos locales no coordinan réplicas.
 5. Proporcione un directorio temporal `uploads/` escribible, con permisos mínimos, control de capacidad y limpieza operativa de archivos huérfanos tras reinicios o errores.
 6. Restrinja MongoDB a la red del servicio, cuentas de privilegio mínimo y conexiones seguras. Configure backups cifrados, pruebas de restauración y retención acorde con datos clínicos y pagos.
-7. Proteja imágenes clínicas y firmas mediante acceso Cloudinary privado/autenticado o un proxy firmado si lo exige su política. Las URLs públicas actuales no aplican autorización por usuario.
+7. Valide los endpoints binarios de medios protegidos y complete únicamente las migraciones de imágenes públicas anteriores expresamente aprobadas. Revise cuotas/latencia del proxy y no marque la protección heredada como terminada antes de comprobar las URLs antiguas.
 8. Centralice logs con redacción de secretos y datos sensibles; el código aún puede registrar errores/respuestas de proveedor y correos de bootstrap. Configure alertas de errores HTTP, disponibilidad de MongoDB, fallos de correo, uploads y recursos.
 9. Valide en staging una sesión de cada rol, recursos ajenos, reconexión socket, pago, carga de firma y flujo de historia completo. Mantenga un plan de rollback de aplicación y respaldo antes de migrar datos.
 

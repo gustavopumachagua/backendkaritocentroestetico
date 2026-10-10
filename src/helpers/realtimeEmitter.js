@@ -1,7 +1,8 @@
 const { getId: getRecordId } = require("./patientIdentity");
+const { presentMedia } = require("./mediaPresentation");
 
 function emitToRoom(io, room, event, payload) {
-  if (io && room) io.to(room).emit(event, payload);
+  if (io && room) io.to(room).emit(event, presentMedia(payload));
 }
 
 /**

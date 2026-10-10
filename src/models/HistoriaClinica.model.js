@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const mediaAssetSchema = require("./mediaAsset.schema");
 
 const { Schema } = mongoose;
 
@@ -28,6 +29,7 @@ const firmaMedicoSchema = new Schema(
     nombre: { type: String, default: "", trim: true, maxlength: 160 },
     cmp: { type: String, default: "", trim: true, maxlength: 30 },
     url: { type: String, default: "", trim: true, maxlength: 2048 },
+    asset: { type: mediaAssetSchema, default: null },
   },
   { _id: false },
 );

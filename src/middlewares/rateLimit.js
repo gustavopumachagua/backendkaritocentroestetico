@@ -8,7 +8,7 @@ function getClientKey(req) {
   return req.ip || req.socket?.remoteAddress || "unknown";
 }
 
-function createRateLimiter({ windowMs, max, message, maxKeys = 10_000 }) {
+function createRateLimiter({ windowMs, max, message, maxKeys = 10_000, keyGenerator = getClientKey }) {
   const buckets = new Map();
   let lastPruneAt = 0;
 
@@ -27,7 +27,7 @@ function createRateLimiter({ windowMs, max, message, maxKeys = 10_000 }) {
     const now = Date.now();
     pruneExpiredBuckets(now);
 
-    const key = getClientKey(req);
+    const key = keyGenerator(req);
     const current = buckets.get(key);
     // Keep the in-process fallback bounded even if an attacker sends a large
     // number of spoofed/unique source addresses. Production still needs a
@@ -76,10 +76,19 @@ const uploadRateLimiter = createRateLimiter({
   message: "Demasiadas cargas de archivos. Inténtalo nuevamente más tarde.",
 });
 
+// JWT authentication runs first: changing IP cannot bypass this account quota.
+const mediaReadRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 180,
+  keyGenerator: (req) => `user:${req.user.id}`,
+  message: "Demasiadas solicitudes de imágenes. Espera un momento e inténtalo nuevamente.",
+});
+
 module.exports = {
   createRateLimiter,
   getClientKey,
   loginRateLimiter,
   passwordResetRateLimiter,
   uploadRateLimiter,
+  mediaReadRateLimiter,
 };

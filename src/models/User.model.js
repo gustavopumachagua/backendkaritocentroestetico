@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const { USER_ROLES } = require("../constants");
+const mediaAssetSchema = require("./mediaAsset.schema");
 
 const userSchema = new mongoose.Schema(
   {
@@ -35,6 +36,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    avatarAsset: { type: mediaAssetSchema, default: null },
     cmp: {
       type: String,
       default: null,
@@ -52,6 +54,19 @@ const userSchema = new mongoose.Schema(
     firmaDigitalPublicId: {
       type: String,
       default: null,
+    },
+    firmaDigitalAsset: { type: mediaAssetSchema, default: null },
+    // Append-only retention ledger. Replacements must not orphan earlier public
+    // assets before the operator explicitly approves their private migration.
+    retiredMediaAssets: {
+      type: [{
+        kind: { type: String, enum: ["avatar", "signature"], required: true },
+        asset: { type: mediaAssetSchema, required: true },
+        url: { type: String, default: "", maxlength: 2048 },
+        retiredAt: { type: Date, required: true },
+      }],
+      default: [],
+      select: false,
     },
     passwordChangedAt: {
       type: Date,

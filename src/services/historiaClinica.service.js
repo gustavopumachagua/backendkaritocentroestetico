@@ -15,7 +15,7 @@ const {
   buildClinicalHistoryIdentityKey,
 } = require("../helpers/clinicalHistoryIdentity");
 
-const DOCTOR_FIELDS = "nombre rol cmp firmaDigital";
+const DOCTOR_FIELDS = "nombre rol cmp firmaDigital firmaDigitalAsset";
 
 function valueToText(value) {
   if (value === undefined || value === null) return "";
@@ -188,6 +188,7 @@ async function sincronizarDatosMedicoEnHistorias(doctor) {
     nombre: valueToText(doctor.nombre),
     cmp: valueToText(doctor.cmp),
     firmaDigital: valueToText(doctor.firmaDigital),
+    ...(doctor.firmaDigitalAsset ? { firmaDigitalAsset: doctor.firmaDigitalAsset } : {}),
   });
 }
 
@@ -672,6 +673,7 @@ async function guardarHistoriaClinica({
       nombre: doctor.nombre || "",
       cmp: doctor.cmp || "",
       url: doctor.firmaDigital || "",
+      ...(doctor.firmaDigitalAsset ? { asset: doctor.firmaDigitalAsset } : {}),
     },
     finalizadaEn: normalizedStatus === "finalizada" ? new Date() : null,
   };
