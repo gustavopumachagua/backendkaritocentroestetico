@@ -82,6 +82,9 @@ const historiaClinicaSchema = new Schema(
     proximoControl: { type: Date, default: null, index: true },
     firmaMedico: { type: firmaMedicoSchema, default: () => ({}) },
     finalizadaEn: { type: Date, default: null },
+    // Explicit handoff only for histories finalized after this workflow was
+    // enabled. Older clinical documents are never shared by a backfill.
+    seguimientoAlimentarioHabilitado: { type: Boolean, default: false },
   },
   { timestamps: true, versionKey: false },
 );
@@ -90,5 +93,6 @@ const historiaClinicaSchema = new Schema(
 // paciente cuando se trata de información histórica sin una cita enlazada.
 historiaClinicaSchema.index({ medico: 1, clavePaciente: 1 }, { unique: true });
 historiaClinicaSchema.index({ estado: 1, proximoControl: 1 });
+historiaClinicaSchema.index({ seguimientoAlimentarioHabilitado: 1, estado: 1, finalizadaEn: -1 });
 
 module.exports = mongoose.model("HistoriaClinica", historiaClinicaSchema);

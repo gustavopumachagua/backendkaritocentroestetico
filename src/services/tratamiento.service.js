@@ -3,6 +3,7 @@ const tratamientoRepository = require("../repositories/tratamiento.repository");
 const citaRepository = require("../repositories/cita.repository");
 const professionalIdentityService = require("./professionalIdentity.service");
 const patientIdentityService = require("./patientIdentity.service");
+const patientDemographicsService = require("./patientDemographics.service");
 const { getId: getRecordId } = require("../helpers/patientIdentity");
 const { buildAttentionHistory } = require("../helpers/attentionHistory");
 const escapeRegex = require("../utils/escapeRegex");
@@ -173,8 +174,13 @@ const crearTratamiento = async (data, files, actor) => {
     estado: citaReservada.estado,
   } : null;
   try {
+    // Both specialties reuse intake data through the appointment's verified
+    // patient reference, without reading another professional's clinical notes.
+    const storedDemographics = await patientDemographicsService.getStoredForPatient(citaReservada?.pacienteId);
+    const patientSex = String(sexo || "").trim() || storedDemographics.sexo;
+    const patientPhone = String(celular || "").trim() || storedDemographics.celular;
     const patientIdentity = await patientIdentityService.resolvePatientForRegistration({
-      nombre, celular, sexo, cita: citaReservada,
+      nombre, celular: patientPhone, sexo: patientSex, cita: citaReservada,
     });
     if (citaReservada && patientIdentity.pacienteId && !citaReservada.pacienteId) {
       const assigned = await citaRepository.assignPacienteIdIfMissing(
@@ -193,8 +199,8 @@ const crearTratamiento = async (data, files, actor) => {
     const nuevoTratamiento = await tratamientoRepository.create({
       nombre: patientIdentity.nombre,
       pacienteId: patientIdentity.pacienteId,
-      sexo,
-      celular,
+      sexo: patientSex,
+      celular: patientPhone,
       servicio: serviciosArray,
       fecha,
       observacion,

@@ -1,4 +1,5 @@
 const tratamientoService = require("../services/tratamiento.service");
+const patientDemographicsService = require("../services/patientDemographics.service");
 const asyncHandler = require("../helpers/asyncHandler");
 const { deleteLocalFile } = require("../helpers/fileHelper");
 const { validateImageFiles } = require("../helpers/imageFileValidator");
@@ -63,5 +64,10 @@ exports.obtenerTratamientosParaReporteServicios = asyncHandler(async (req, res) 
 exports.buscarPaciente = asyncHandler(async (req, res) => {
   const { nombre } = req.params;
   const paciente = await tratamientoService.buscarPaciente(nombre, req.user);
+  res.json(paciente);
+});
+
+exports.obtenerPacientePorCita = asyncHandler(async (req, res) => {
+  const paciente = await patientDemographicsService.getByAppointment(req.params.citaId, req.user);
   res.json(paciente);
 });

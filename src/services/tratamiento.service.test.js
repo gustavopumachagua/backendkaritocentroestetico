@@ -6,6 +6,7 @@ const citaRepository = require("../repositories/cita.repository");
 const tratamientoRepository = require("../repositories/tratamiento.repository");
 const professionalIdentityService = require("./professionalIdentity.service");
 const patientIdentityService = require("./patientIdentity.service");
+const patientDemographicsService = require("./patientDemographics.service");
 const { Types } = require("mongoose");
 
 test.beforeEach((t) => {
@@ -428,5 +429,46 @@ for (const fail of [false, true]) {
       assert.equal(result.cita, id);
       assert.deepEqual(events, ["assigned", "create"]);
     }
+  });
+}
+
+for (const role of ["doctor", "cosmiatra"]) {
+  test(`${role} registration reuses missing intake fields from the appointment's existing patient id`, async (t) => {
+    const id = "507f1f77bcf86cd799439040";
+    const professionalId = "507f1f77bcf86cd799439041";
+    const pacienteId = "507f1f77bcf86cd799439042";
+    const cita = { _id: id, pacienteId, cliente: "Camila Pérez", profesional: professionalId, rol: role, estado: "atendido" };
+    const citaOriginals = { ...citaRepository };
+    const treatmentOriginals = { ...tratamientoRepository };
+    const identityOriginals = { ...patientIdentityService };
+    const demographicsOriginals = { ...patientDemographicsService };
+    t.after(() => {
+      Object.assign(citaRepository, citaOriginals);
+      Object.assign(tratamientoRepository, treatmentOriginals);
+      Object.assign(patientIdentityService, identityOriginals);
+      Object.assign(patientDemographicsService, demographicsOriginals);
+    });
+    citaRepository.findById = async () => cita;
+    citaRepository.marcarComoAtendidaSiPendientePorProfesional = async () => cita;
+    citaRepository.assignPacienteIdIfMissing = async () => assert.fail("must not assign a second identity");
+    patientDemographicsService.getStoredForPatient = async (id) => {
+      assert.equal(id, pacienteId);
+      return { sexo: "Femenino", celular: "987654321" };
+    };
+    patientIdentityService.resolvePatientForRegistration = async (input) => {
+      assert.equal(input.cita.pacienteId, pacienteId);
+      assert.equal(input.sexo, "Femenino");
+      assert.equal(input.celular, "987654321");
+      return { pacienteId, nombre: "Camila Pérez" };
+    };
+    tratamientoRepository.create = async (data) => data;
+    const result = await tratamientoService.crearTratamiento({ citaId: id, nombre: "Camila Pérez",
+      servicio: ["Atención"], fecha: "2026-10-15", sexo: "", celular: "" }, [],
+    { id: professionalId, nombre: "Profesional Actual", rol: role });
+    assert.equal(result.pacienteId, pacienteId);
+    assert.equal(result.sexo, "Femenino");
+    assert.equal(result.celular, "987654321");
+    assert.equal(result.profesionalId, professionalId);
+    assert.equal(result.rol, role);
   });
 }

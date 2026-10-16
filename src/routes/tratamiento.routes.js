@@ -6,6 +6,7 @@ const {
   obtenerHistorialAtenciones,
   obtenerTratamientosParaReporteServicios,
   buscarPaciente,
+  obtenerPacientePorCita,
 } = require("../controllers/tratamiento.controller");
 const authMiddleware = require("../middlewares/authJwt");
 const authorizeRole = require("../middlewares/authorizeRole");
@@ -38,6 +39,12 @@ router.post(
   authorizeRole(...PROFESSIONAL_ROLES),
   upload.array("imagenes", 5),
   crearTratamiento,
+);
+router.get(
+  "/paciente-por-cita/:citaId",
+  authMiddleware,
+  authorizeRole(...PROFESSIONAL_ROLES),
+  obtenerPacientePorCita,
 );
 router.get(
   "/buscar/:nombre",

@@ -676,6 +676,7 @@ async function guardarHistoriaClinica({
       ...(doctor.firmaDigitalAsset ? { asset: doctor.firmaDigitalAsset } : {}),
     },
     finalizadaEn: normalizedStatus === "finalizada" ? new Date() : null,
+    seguimientoAlimentarioHabilitado: normalizedStatus === "finalizada",
   };
 
   const wasCreated = !existing;

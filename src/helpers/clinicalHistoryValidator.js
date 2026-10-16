@@ -1,3 +1,8 @@
+const {
+  getClinicalExamRowsValidationError,
+  hasCompleteClinicalExamRows,
+} = require("./clinicalExamRows");
+
 const ROMAN_NUMBERS = [
   "I",
   "II",
@@ -266,6 +271,13 @@ function getPayloadValidationErrors(formData, currentStep, now = new Date()) {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(formData, "examenesAuxiliares")) {
+    const examRowsError = getClinicalExamRowsValidationError(
+      formData.examenesAuxiliares,
+    );
+    if (examRowsError) errors.push(examRowsError);
+  }
+
   if (
     currentStep !== undefined &&
     (!Number.isInteger(currentStep) || currentStep < 0 || currentStep > 14)
@@ -447,19 +459,21 @@ const SECTION_DEFINITIONS = [
     title: "EXÁMENES AUXILIARES",
     isComplete: (d) =>
       isDate(d.fechaLaboratorio) &&
-      [
-        "glucosaAyunas",
-        "hba1c",
-        "creatinina",
-        "tfge",
-        "tgoAst",
-        "tgpAlt",
-        "colesterolTotal",
-        "ldl",
-        "hdl",
-        "trigliceridos",
-        "tsh",
-      ].every((field) => hasText(d[field])),
+      (Object.prototype.hasOwnProperty.call(d, "examenesAuxiliares")
+        ? hasCompleteClinicalExamRows(d.examenesAuxiliares)
+        : [
+            "glucosaAyunas",
+            "hba1c",
+            "creatinina",
+            "tfge",
+            "tgoAst",
+            "tgpAlt",
+            "colesterolTotal",
+            "ldl",
+            "hdl",
+            "trigliceridos",
+            "tsh",
+          ].every((field) => hasText(d[field]))),
   },
   {
     id: "evaluacion-medica",

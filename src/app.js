@@ -17,6 +17,7 @@ const userRoutes = require("./routes/user.routes");
 const pagoRoutes = require("./routes/pago.routes");
 const historiaClinicaRoutes = require("./routes/historiaClinica.routes");
 const mediaRoutes = require("./routes/media.routes");
+const planAlimentarioRoutes = require("./routes/planAlimentario.routes");
 const { protectedMediaPresentation } = require("./helpers/mediaPresentation");
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/tratamientos", tratamientoRoutes);
 app.use("/api/pagos", pagoRoutes);
 app.use("/api/historias-clinicas", historiaClinicaRoutes);
 app.use("/api/media", mediaRoutes);
+app.use("/api/planes-alimentarios", planAlimentarioRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Ruta no encontrada" });

@@ -200,6 +200,14 @@ Las citas vinculadas se actualizan en todos los estados: `pendiente`, `atendido`
 
 El autocompletado puede devolver `citaPacienteId` para un cliente identificado. `cita.service` valida formato, existencia, permisos, identidad y nombre vigente de esa referencia antes de reutilizar el cliente. Un `pacienteId` arbitrario del navegador no concede identidad ni propiedad. Alias y nombres anteriores son metadatos internos; no permiten ver historias de otro médico ni fusionar homónimos.
 
+#### Datos de ingreso compartidos entre especialidades
+
+El sexo y celular registrados en una atención pueden reutilizarse al agendar al **mismo cliente identificado** con doctor o cosmiatra. La nueva cita conserva el `pacienteId` validado mediante `citaPacienteId`; no se crea otra identidad por cambiar de especialidad.
+
+`GET /tratamientos/paciente-por-cita/:citaId` exige JWT, rol profesional y que la cita pertenezca al ID y rol del usuario autenticado. Devuelve únicamente `{ nombre, pacienteId, sexo, celular }`; normaliza el sexo a `Femenino`/`Masculino` y el teléfono al formato numérico admitido. `patientDemographics.service` coordina permisos y presentación, mientras `patientDemographics.repository` consulta por la identidad persistida con proyecciones mínimas y consultas acotadas por campo. Se prioriza el último valor no vacío guardado, incluso si procede de la otra especialidad. No se comparten diagnósticos, respuestas clínicas, DNI, imágenes ni documentos.
+
+Una primera cita sin identidad verificada devuelve los datos de captura vacíos, sin buscar por nombre ni unir homónimos. El registro de tratamiento también completa valores omitidos desde la identidad de su propia cita, manteniendo el mismo `pacienteId`; los valores explícitamente editados se conservan. El endpoint anterior `/tratamientos/buscar/:nombre` continúa limitado a los registros del profesional y no se amplía para consultar pacientes de otras cuentas. Las reservas nominales heredadas sin vínculo verificable requieren seleccionar un cliente identificado o verificar sus datos; este cambio no ejecuta una migración ni una fusión automática.
+
 La respuesta de guardado informa `pacienteActualizado.citasSinIdentidadVerificada` si quedan reservas antiguas sin evidencia. Las escrituras verifican valores anteriores y la evidencia usada; ante error se compensan solo valores escritos por esa operación, protegiendo cambios concurrentes de otras sesiones.
 
 ### Cambios del perfil profesional
@@ -230,12 +238,14 @@ Todas las rutas se montan bajo `/api`. Las protegidas reciben `Authorization: Be
 | Perfil y profesionales | `PUT /usuarios/:id`, `GET /usuarios/profesionales` | Cuenta propia para actualizar perfil; consulta autenticada de profesionales. |
 | Citas | `GET/POST /citas`, `GET /citas/buscar?nombre=...`, `PUT/DELETE /citas/:id`, `PATCH` o `PUT /citas/:id/estado` | Personal autenticado; el doctor solo gestiona citas propias. |
 | Tratamientos | `GET/POST /tratamientos`, `GET /tratamientos/buscar/:nombre` | Alta para doctor/cosmiatra; administrador consulta globalmente y profesionales consultan sus registros. |
+| Datos de ingreso del paciente | `GET /tratamientos/paciente-por-cita/:citaId` | Doctor/cosmiatra asignado a la cita; sexo y celular de la misma identidad verificada, sin historial clínico. |
 | Historial de atenciones | `GET /tratamientos/historial-atenciones` | Administrador global; cada profesional recibe sus atenciones. |
 | Reporte de servicios | `GET /tratamientos/reporte-servicios` | Cosmiatra/administrador; ambas especialidades con proyección operativa mínima. |
 | Inventario | `GET /inventario/:rol?tipo=insumo`, `POST /inventario`, `PUT/DELETE /inventario/:id`, `PUT /inventario/descontar` | Lectura del rol propio o administrador; cosmiatra puede consultar nombres de servicios de ambas especialidades para reservar. Catálogo administrador; descuento del rol propio o administrador. |
 | Pagos | `GET /pagos`, `GET /pagos/:citaId`, `POST /pagos` | Registro cosmiatra/administrador; lectura autenticada, restringida a citas propias para doctor. |
 | Historia clínica | `GET/PUT /historias-clinicas`, `GET/PUT /historias-clinicas/citas/:citaId`, `GET /historias-clinicas/:id`, `GET /historias-clinicas/finalizadas` | Doctor propietario, mediante identidad del origen y del documento. |
 | Próximos controles | `GET /historias-clinicas/proximos-controles` | Cosmiatra/administrador; controles finalizados cuya fecha no ha pasado. |
+| Seguimiento y plan alimentario | `GET /planes-alimentarios/seguimientos`, `GET/PUT /planes-alimentarios/:historiaId` | Solo Cosmiatra; ficha explícitamente habilitada y plan propio por ID de cuenta, con revisión optimista. |
 | Archivos | `POST /upload`, `POST /upload/firma` | Cuenta autenticada; firma exclusiva del doctor; multipart `file`, límites y validación. Nuevas imágenes con entrega `authenticated`. |
 | Medios protegidos | `GET /media/avatars/:userId`, `/media/signatures/:userId`, `/media/histories/:historyId/signature`, `/media/treatments/:treatmentId/images/:imageId` | Entrega binaria tras JWT y política de propiedad. No redirige a Cloudinary ni devuelve enlaces temporales. |
 
@@ -252,6 +262,23 @@ La cita verifica el rol del profesional y que los servicios pertenezcan al catá
 El borrador puede conservar respuestas incompletas, pero no datos estructuralmente inválidos. El servidor valida tamaño, anidamiento, campos y formatos, DNI, valores numéricos, mayoría de edad y coherencia con nacimiento. Finalizar exige además completar las secciones y requisitos condicionales; la sección gineco-obstétrica se exige según el sexo del paciente. El médico, CMP y firma se toman de la cuenta autenticada.
 
 Una historia finalizada no admite editar respuestas por el guardado ordinario. La sincronización de identidad del cliente y del perfil profesional actualiza únicamente sus campos de identificación correspondientes. El próximo control produce un aviso operativo; no crea automáticamente una nueva cita ni reemplaza el proceso de reserva de recepción.
+
+#### Exámenes auxiliares: tabla dinámica y compatibilidad
+
+Los exámenes nuevos se guardan en `formData.examenesAuxiliares` (persistido en `datosFormulario`) como una lista de objetos con exactamente dos propiedades de texto: `examen` y `resultado`. El frontend permite agregar y quitar filas; no existe un catálogo obligatorio de pruebas ni se interpreta clínicamente su resultado.
+
+```json
+{
+  "fechaLaboratorio": "2026-10-15",
+  "examenesAuxiliares": [
+    { "examen": "Nombre del examen", "resultado": "Resultado registrado por el médico" }
+  ]
+}
+```
+
+El helper puro `clinicalExamRows` valida hasta 100 filas, 160 caracteres por nombre de examen y 2.000 por resultado. Rechaza valores que no sean texto, objetos con propiedades adicionales o estructura incorrecta. Un borrador admite la lista vacía y filas parcialmente respondidas. Al finalizar se exige una fecha de laboratorio válida, al menos una fila con ambos valores y ninguna fila parcialmente respondida; las filas completamente vacías se omiten de esa comprobación.
+
+La presencia de `examenesAuxiliares` hace que esta tabla sea la fuente de validación, aunque coexistan campos antiguos. Si la propiedad no existe, se conserva el contrato anterior de `glucosaAyunas`, `hba1c`, `creatinina`, `tfge`, `tgoAst`, `tgpAlt`, `colesterolTotal`, `ldl`, `hdl`, `trigliceridos` y `tsh`. No se ejecuta una migración ni se borran respuestas históricas; los documentos ya finalizados permanecen legibles. El frontend transforma el formato heredado únicamente para presentarlo y mantiene compatibilidad al preparar el PDF. Las pruebas `clinicalExamRows.test.js` y `clinicalHistoryValidator.test.js` cubren ambos contratos, límites y filas incompletas.
 
 ### Citas atendidas sin tratamiento
 
@@ -281,6 +308,7 @@ io(SOCKET_URL, { auth: { token } });
 | `nuevoPago`, `historiaClinicaFinalizada` | Administración y recepción. |
 | `profesionalActualizado` | Roles autenticados, con identidad pública mínima. |
 | `pacienteActualizado` | Administración/recepción y profesionales afectados; identidad/nombre, no respuestas clínicas. |
+| `planAlimentarioActualizado` | Cosmiatra; únicamente ID de historia para refrescar fichas, sin comidas ni contenido clínico. |
 
 HTTP y MongoDB siguen siendo la fuente de verdad. Los eventos avisan de cambios, no proporcionan una cola durable ni recuperación garantizada de mensajes perdidos. Suspender/eliminar una cuenta o cambiar su contraseña desconecta sus sockets del proceso local. Varias réplicas necesitan un adaptador compartido y una estrategia coordinada de sesiones/revalidación.
 
@@ -360,6 +388,34 @@ node src/services/mediaMigration.service.test.js
 
 Los dobles de Cloudinary/MongoDB prueban selección explícita, confirmación, inventario con propiedad, integridad, guardas optimistas, fallo parcial, reanudación sin duplicados y reintentos acotados. No demuestran por sí solos la revocación CDN, las cuotas o la caducidad real de la cuenta; esos controles requieren el piloto autorizado. Los manifests y datos de producción nunca deben ser fixtures.
 
+## Seguimiento y plan alimentario de Cosmiatra
+
+Una nueva finalización de historia clínica, realizada después de desplegar este flujo, habilita un seguimiento alimentario independiente para el rol `cosmiatra`. `seguimientoAlimentarioHabilitado` se persiste en **la misma escritura de la historia**, junto con `estado: "finalizada"` y su fecha, y tiene valor predeterminado `false`. Si la validación falla, no se habilita ninguna ficha. Las historias que ya estaban finalizadas antes del despliegue y los borradores no se transfieren ni aparecen retroactivamente; un borrador anterior puede habilitarse cuando se finalice por primera vez con esta versión. No se ejecuta un backfill. No se crean citas, pagos ni tratamientos ficticios para simular un seguimiento; tampoco se mezclan los tratamientos históricos del médico con el historial de Cosmiatra.
+
+### Arquitectura y contrato
+
+El agregado nuevo conserva la estructura de capas del proyecto: `planAlimentario.routes` aplica JWT, autorización estricta de Cosmiatra y límite por cuenta; el controlador adapta HTTP; `planAlimentario.service` valida permisos, reglas y DTO; el repositorio encapsula las consultas y las escrituras Mongoose; `PlanAlimentario.model` establece esquema y restricciones. El servicio admite inyección de repositorio/reloj para pruebas sin red ni base de datos.
+
+| Método y ruta | Respuesta o acción |
+| --- | --- |
+| `GET /api/planes-alimentarios/seguimientos` | `{ seguimientos }`: fichas habilitadas pendientes de asignación y planes propiedad de la Cosmiatra autenticada. |
+| `GET /api/planes-alimentarios/:historiaId` | `{ seguimiento, plan }`, con `plan: null` cuando todavía no existe. |
+| `PUT /api/planes-alimentarios/:historiaId` | Guarda borrador o finaliza. Devuelve `{ seguimiento, plan }` con la revisión actualizada. |
+
+Cada ficha contiene únicamente el ID de historia/paciente, nombre actual, sexo, celular, edad, peso, talla, IMC, fecha de finalización y estado/ID del plan. La consulta selecciona explícitamente esos campos: **no entrega el formulario médico completo, DNI, firma, médico, diagnósticos, antecedentes ni exámenes auxiliares** a este flujo. La disponibilidad de fichas sin plan es compartida dentro del rol; la primera escritura reclama el plan para el ID inmutable de la profesional. Los planes de otras profesionales se excluyen del listado y su lectura/escritura devuelve `403`. Doctor y administrador no adquieren acceso al nuevo endpoint por conocer una URL.
+
+El cuerpo de guardado admite exclusivamente `estado`, `indicadores`, `semana`, `indicaciones` y `revision`. Los indicadores son cadenas (`edad`, `peso`, `talla`, `imc`); la edad debe ser entera entre 18 y 130 y las otras magnitudes numéricas positivas, finitas, de hasta 12 caracteres. Se normaliza la coma decimal a punto. `semana` contiene exactamente Lunes, Martes, Miércoles, Jueves, Viernes, Sábado y Domingo en ese orden; cada día tiene `desayuno`, `mediaManana`, `almuerzo`, `mediaTarde` y `cena` (máximo 1.500 caracteres por celda). Las indicaciones admiten hasta 4.000 caracteres. El borrador puede tener campos vacíos; finalizar exige los cuatro indicadores, las 35 comidas y las indicaciones. Un error de finalización devuelve `422` y `details.fields` con las rutas de los campos pendientes. El sistema no genera recomendaciones dietéticas automáticas: guarda el contenido redactado por la profesional.
+
+### Identidad, concurrencia y finalización
+
+El plan referencia la historia por ID único y no duplica el nombre del paciente. Las lecturas resuelven el nombre desde la historia actual, conservando las correcciones verificadas de identidad sin crear otro cliente ni renombrar por coincidencias de texto. `profesionalId` e `historiaClinicaId` son inmutables.
+
+El índice único `historiaClinicaId` evita dos planes para la misma ficha. Para el primer guardado se envía `revision: 0` y la respuesta devuelve `1`; cada escritura posterior exige la revisión recibida y usa una operación compare-and-set por historia, propietaria, estado `borrador` y revisión. Si otra pestaña actualizó el contenido se devuelve `409`, sin sobrescribir sus cambios. Al finalizar se fija `finalizadoEn` y el plan queda de solo lectura, incluyendo intentos de guardado posteriores. Una carrera del primer guardado no transfiere la propiedad a la segunda cuenta.
+
+El evento existente `historiaClinicaFinalizada` permite refrescar el feed cuando se habilita una ficha; `planAlimentarioActualizado` informa solo el ID de historia al rol para refrescar asignaciones/estado, sin difundir comidas ni datos médicos. El PDF y su vista previa se generan en el frontend a partir del plan autorizado; no se almacena una copia binaria del PDF en MongoDB. Se necesita desplegar cliente/API conjuntamente. Antes de habilitar escrituras en producción, compruebe que MongoDB haya creado el índice único del nuevo modelo; las pruebas con dobles no sustituyen la validación del índice ni de la concurrencia en una base aislada.
+
+Pruebas específicas: `node --test src/services/planAlimentario.service.test.js src/repositories/planAlimentario.repository.test.js src/controllers/planAlimentario.controller.test.js src/services/historiaClinica.service.test.js`. Cubren ausencia de backfill, habilitación en la escritura de finalización, proyección mínima, roles/propiedad inmutable, homónimos, actualización del nombre, validación, borrador/finalizado, revisión y carreras simuladas. No requieren credenciales ni ejecutan migraciones reales.
+
 ## Pruebas y mantenimiento
 
 ```bash
@@ -374,8 +430,10 @@ git diff --check
 
 | Área | Ejemplos de regresiones |
 | --- | --- |
-| Historia clínica | `clinicalHistoryValidator.test.js`, `clinicalHistoryIdentity.test.js`, `historiaClinica.service.test.js`. |
+| Historia clínica | `clinicalHistoryValidator.test.js`, `clinicalExamRows.test.js`, `clinicalHistoryIdentity.test.js`, `historiaClinica.service.test.js`. |
+| Plan alimentario | `planAlimentario.service.test.js`, `planAlimentario.repository.test.js`, `planAlimentario.controller.test.js`. |
 | Identidad del paciente | `patientIdentity.test.js`, `patientIdentity.service.test.js`, `appointmentPatientIdentity.test.js`, `patientNamePropagation.test.js`. |
+| Datos de ingreso entre especialidades | `patientDemographics.service.test.js`, `patientDemographics.repository.test.js`, `tratamiento.service.test.js`: permisos, DTO mínimo, primer ingreso, aislamiento de homónimos y reutilización del mismo ID en ambos roles. |
 | Estados y reparación revisada | `patientNameAllAppointmentStates.test.js`, `reviewedAppointmentIdentity.test.js`. |
 | Profesional y perfil | `professionalIdentity.service.test.js`, `user.service.test.js`, `tratamiento.repository.test.js`. |
 | Historial/reporte | `attentionHistory.test.js`, `tratamiento.service.test.js`. |

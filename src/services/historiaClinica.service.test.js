@@ -66,6 +66,51 @@ function restoreFunctions(target, functions) {
   Object.assign(target, functions);
 }
 
+test("finalization enables the cosmiatra handoff in the same history write, never on failed validation", async (t) => {
+  const captures = [
+    [historiaRepository, ["findByTratamiento", "findByMedicoAndClavePaciente", "create"]],
+    [tratamientoRepository, ["findById"]], [userRepository, ["findById"]],
+  ].map(([target, names]) => [target, captureFunctions(target, names)]);
+  t.after(() => captures.forEach(([target, originals]) => restoreFunctions(target, originals)));
+  userRepository.findById = async () => ({ _id: DOCTOR_ID, rol: "doctor", nombre: "Dra. Segura" });
+  tratamientoRepository.findById = async () => ({ _id: TREATMENT_ID, nombre: "Paciente", rol: "doctor", profesionalId: DOCTOR_ID });
+  historiaRepository.findByTratamiento = async () => null;
+  historiaRepository.findByMedicoAndClavePaciente = async () => null;
+  const writes = [];
+  historiaRepository.create = async (data) => { writes.push(data); return { _id: HISTORY_ID, ...data }; };
+  const input = { doctorId: DOCTOR_ID, tratamientoId: TREATMENT_ID, patientName: "Paciente", currentStep: 14, status: "finalized" };
+  await assert.rejects(() => historiaClinicaService.guardarHistoriaClinica({ ...input, formData: { nombreCompleto: "Paciente" } }),
+    (error) => error.statusCode === 422);
+  assert.equal(writes.length, 0);
+
+  // Synthetic fixture solely for finalization contract verification, not
+  // medical advice or real patient data. All sections use explicit answers.
+  const form = {
+    nombreCompleto: "Paciente", sexo: "Masculino", dni: "12345678", edad: "30",
+    fechaNacimiento: `${new Date().getFullYear() - 30}-01-01`, telefono: "999111222",
+    ocupacion: "Demostración", fechaConsulta: "2026-10-15", motivoPrincipal: "Seguimiento",
+    dificultadPeso: "No", objetivoPaciente: "Demostración", evolucionPeso: "Demostración", intentosPrevios: "No",
+    tratamientosPreviosRespuesta: "No", enfermedadesAntecedentes: ["No"], antecedentesFamiliares: ["No"],
+    familiaresEspecificar: "No", medicamentosActuales: "No", suplementosVitaminas: "No", agonistasGlp1: "No",
+    alimentacionHabitual: "Demostración", comidasDia: "3", sensacionHambre: "No", antojosPicoteo: "No",
+    actividadFisica: "No", horasSueno: "8", calidadSueno: "Demostración", consumoAlcohol: "No", sintomasActuales: ["No"],
+    examenFisico: "Demostración", fechaLaboratorio: "2026-10-15", examenesAuxiliares: [{ examen: "Examen de prueba", resultado: "Resultado de prueba" }],
+    diagnostico1: "Demostración", comorbilidades: "No", factoresRiesgo: "No", observacionesClinicas: "Demostración",
+    conductaPlan: ["Seguimiento"], medicamentoIndicado: "Demostración", presentacion: "Demostración", dosisInicial: "Demostración",
+    fechaInicioTratamiento: "2026-10-15", proximoControl: "2026-11-15", consentimientoInformado: "Sí",
+    consentimientoFecha: "2026-10-15", fechaConstancia: "2026-10-15",
+  };
+  for (const field of ["pesoMaximo", "pesoHabitual", "pesoActual", "talla", "imc", "perimetroAbdominal", "presionSistolica", "presionDiastolica", "frecuenciaCardiaca", "pesoClinico", "tallaClinica", "imcClinico", "perimetroAbdominalClinico"]) form[field] = "1";
+  for (const field of ["cirugiasPrevias", "hospitalizacionesPrevias", "alergiaMedicamentos", "alergiasAlimentarias", "alergiaLatex", "reaccionesAdversas", "transfusionesSanguineas", "carcinomaMedularPersonal", "carcinomaMedularFamiliar", "men2PersonalFamiliar", "enfermedadTiroideaConocida", "pancreatitisPrevia", "dolorAbdominalRecurrente", "litiasisVesicular", "colecistitis", "cirugiaVesicula", "enfermedadHepatica", "ictericiaPrevia", "gastroparesia", "enfermedadGiImportante", "enfermedadRenal", "deshidratacionReciente", "hipoglucemiasPrevias", "insulina", "sulfonilureas", "otrosMedDiabetes", "otrosMedPeso"]) form[field] = "No";
+  const result = await historiaClinicaService.guardarHistoriaClinica({ ...input, formData: form });
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].estado, "finalizada");
+  assert.equal(writes[0].seguimientoAlimentarioHabilitado, true);
+  assert.ok(writes[0].finalizadaEn instanceof Date);
+  assert.equal(result.historia.seguimientoAlimentarioHabilitado, true);
+  assert.equal(result.finalizadaAhora, true);
+});
+
 test("a treatment id prevents a homonymous history from being reused on rename", async (t) => {
   const historyMethods = captureFunctions(historiaRepository, [
     "findByTratamiento",
@@ -132,6 +177,7 @@ test("a treatment id prevents a homonymous history from being reused on rename",
   assert.equal(createdHistory.tratamiento, TREATMENT_ID);
   assert.equal(createdHistory.clavePaciente, `tratamiento:${TREATMENT_ID}`);
   assert.equal(createdHistory.paciente.nombre, "Ana López García");
+  assert.equal(createdHistory.seguimientoAlimentarioHabilitado, false);
   assert.ok(queriedKeys.every((key) => key === `tratamiento:${TREATMENT_ID}`));
   assert.deepEqual(renamedTreatments, [
     { id: TREATMENT_ID, nombre: "Ana López García" },
